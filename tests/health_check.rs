@@ -1,12 +1,14 @@
 //! tests/health_check.rs
 
+use zero2prod::startup::run;
+
 /// Spin up an instance of our application
 /// and returns its address (i.e. http://localhost:XXXX)
 fn spawn_app() -> String {
     let listener = TcpListener::bind("localhost:0").expect("Failed to bind random port");
     // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
-    let server = zero2prod::run(listener).expect("Failed to bind address");
+    let server = run(listener).expect("Failed to bind address");
     let _ = tokio::spawn(server);
     // We return the application address to the caller!
     format!("http://localhost:{}", port)
