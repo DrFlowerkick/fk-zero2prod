@@ -1,7 +1,10 @@
 //! src/configuration.rs
 use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
-use sqlx::{postgres::{PgConnectOptions, PgSslMode}, ConnectOptions};
+use sqlx::{
+    postgres::{PgConnectOptions, PgSslMode},
+    ConnectOptions,
+};
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
@@ -105,8 +108,8 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
         .add_source(
             config::Environment::with_prefix("APP")
-            .prefix_separator("_")
-            .separator("__")
+                .prefix_separator("_")
+                .separator("__"),
         )
         .build()?;
     // Try to convert the configuration values it read into our Settings type
