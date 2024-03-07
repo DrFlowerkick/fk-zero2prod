@@ -1,4 +1,4 @@
-//! src/domain.rs
+//! src/domain/subscriber_name.rs
 
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -39,12 +39,6 @@ impl SubscriberName {
         }
     }
 }
-
-pub struct NewSubscriber {
-    pub email: String,
-    pub name: SubscriberName,
-}
-
 
 #[cfg(test)]
 mod tests {
