@@ -13,3 +13,4 @@ email_client:
   # sendgrid api key: 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
   # postmark token: 1d419ed1-109d-4665-9c32-6307e5f73b9a
   authorization_token: 1d419ed1-109d-4665-9c32-6307e5f73b9a
+  timeout_milliseconds: 10000
