@@ -12,14 +12,14 @@ use crate::domain::SubscriberEmail;
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
-    pub email_client: EmailClientSettings,
+    pub emailclient: EmailClientSettings,
 }
 
 #[derive(serde::Deserialize)]
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
-    pub authorization_token: Secret<String>,
+    pub token: Secret<String>,
     pub timeout_milliseconds: u64,
 }
 
