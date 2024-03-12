@@ -8,6 +8,6 @@ database:
   password: "password"
   database_name: "newsletter"
 emailclient:
-  base_url: "localhost"
+  base_url: "http://127.0.0.1"
   sender_email: "test@gmail.com"
   timeout_milliseconds: 10000
