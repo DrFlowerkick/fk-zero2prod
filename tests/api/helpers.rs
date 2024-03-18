@@ -5,6 +5,7 @@ use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
+use zero2prod::domain::SubscriberEmail;
 use zero2prod::startup::{get_connection_pool, Application};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
@@ -65,6 +66,16 @@ impl TestApp {
         let html = get_link(&body["HtmlBody"].as_str().unwrap());
         let plain_text = get_link(&body["TextBody"].as_str().unwrap());
         ConfirmationLinks { html, plain_text }
+    }
+
+    /// Extract the reciever eamil from the request to the email API.
+    pub fn get_reciever_email(&self, email_request: &wiremock::Request) -> SubscriberEmail {
+        // Parse the body as JSON, starting from raw bytes
+        let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+        // get reciever from body
+        let reciever_email = body["To"].as_str().unwrap();
+        let reciever_email = SubscriberEmail::parse(reciever_email.to_owned()).unwrap();
+        reciever_email
     }
 }
 
@@ -130,6 +141,7 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
 }
 
 /// Confirmation links embedded in the rquest to the email API.
+#[derive(PartialEq, Eq, Debug)]
 pub struct ConfirmationLinks {
     pub html: reqwest::Url,
     pub plain_text: reqwest::Url,

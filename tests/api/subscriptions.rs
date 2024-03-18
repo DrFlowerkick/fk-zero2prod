@@ -140,3 +140,31 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
         );
     }
 }
+
+#[tokio::test]
+async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_links_and_recievers() {
+    // Arrange
+    let test_app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act
+    let response_first = test_app.post_subscriptions(body.into()).await;
+    let response_second = test_app.post_subscriptions(body.into()).await;
+    let email_requests = &test_app.email_server.received_requests().await.unwrap();
+
+    // Assert
+    assert_eq!(200, response_first.status().as_u16(), "first subscription");
+    assert_eq!(200, response_second.status().as_u16(), "second subscription");
+    let confirmation_links_first = test_app.get_confirmation_links(&email_requests[0]);
+    let confirmation_links_second = test_app.get_confirmation_links(&email_requests[1]);
+    assert_eq!(confirmation_links_first, confirmation_links_second);
+    let reciever_email_first = test_app.get_reciever_email(&email_requests[0]);
+    let reciever_email_second = test_app.get_reciever_email(&email_requests[1]);
+    assert_eq!(reciever_email_first.as_ref(), reciever_email_second.as_ref());
+}

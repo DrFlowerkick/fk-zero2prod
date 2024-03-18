@@ -54,26 +54,13 @@ pub async fn subscribe(
         Ok(subscriber) => subscriber,
         Err(_) => return HttpResponse::BadRequest().finish(),
     };
-    let mut transaction = match pool.begin().await {
-        Ok(transaction) => transaction,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
+    let subscription_token = match subscribe_transaction(&new_subscriber, pool.as_ref()).await {
+        Ok(new_subscription_token) => new_subscription_token,
+        Err(err) => match fetch_token_if_unique_violation(&new_subscriber, pool.as_ref(), err).await {
+            Ok(existing_subscription_token) => existing_subscription_token,
+            Err(_) => return HttpResponse::InternalServerError().finish(),
+        },
     };
-
-    let subscriber_id = match insert_subscriber(&mut transaction, &new_subscriber).await {
-        Ok(subscriber_id) => subscriber_id,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
-    };
-    let subscription_token = generate_subscription_token();
-
-    if store_token(&mut transaction, subscriber_id, &subscription_token)
-        .await
-        .is_err()
-    {
-        return HttpResponse::InternalServerError().finish();
-    }
-    if transaction.commit().await.is_err() {
-        return HttpResponse::InternalServerError().finish();
-    }
     if send_confirmation_email(
         &email_client,
         new_subscriber,
@@ -86,6 +73,50 @@ pub async fn subscribe(
         return HttpResponse::InternalServerError().finish();
     }
     HttpResponse::Ok().finish()
+}
+
+#[tracing::instrument(
+    name = "Executing the transaction to insert a new subscriber in the database.",
+    skip(new_subscriber, pool)
+)]
+pub async fn subscribe_transaction(
+    new_subscriber: &NewSubscriber,
+    pool: &PgPool,
+) -> Result<String, sqlx::Error> {
+    // init transaction
+    let mut transaction = pool.begin().await?;
+    // insert subscriber in transaction
+    let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber).await?;
+    // insert token in transaction
+    let subscription_token = generate_subscription_token();
+    store_token(&mut transaction, subscriber_id, &subscription_token).await?;
+    // commit transaction
+    transaction.commit().await?;
+    // return transaction token
+    Ok(subscription_token)
+}
+
+#[tracing::instrument(
+    name = "Fetching subscription token from the database if unique violation.",
+    skip(new_subscriber, pool, err)
+)]
+pub async fn fetch_token_if_unique_violation(
+    new_subscriber: &NewSubscriber,
+    pool: &PgPool,
+    err: sqlx::Error
+) -> Result<String, sqlx::Error> {
+    if let Some(db_err) = err.as_database_error() {
+        if !db_err.is_unique_violation() {
+            return Err(err);
+        }
+    } else {
+        return Err(err);
+    }
+    // get uuid from substriction table with email
+    let new_subscriber_id = get_subscriber_id_from_email(pool, new_subscriber).await?;
+    // 2. get subscription token with uuid
+    let subscription_token = get_token_from_subscriber_id(pool, new_subscriber_id).await?;
+    Ok(subscription_token)
 }
 
 #[tracing::instrument(
@@ -168,4 +199,42 @@ pub async fn send_confirmation_email(
     email_client
         .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
+}
+
+#[tracing::instrument(name = "Get subscriber id from email", skip(new_subscriber, pool))]
+pub async fn get_subscriber_id_from_email(
+    pool: &PgPool,
+    new_subscriber: &NewSubscriber,
+) -> Result<Uuid, sqlx::Error> {
+    let result = sqlx::query!(
+        "SELECT id FROM subscriptions \
+        WHERE email = $1",
+        new_subscriber.email.as_ref(),
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        e
+    })?;
+    Ok(result.id)
+}
+
+#[tracing::instrument(name = "Get token from subscriber_id", skip(subscriber_id, pool))]
+pub async fn get_token_from_subscriber_id(
+    pool: &PgPool,
+    subscriber_id: Uuid,
+) -> Result<String, sqlx::Error> {
+    let result = sqlx::query!(
+        "SELECT subscription_token FROM subscription_tokens \
+        WHERE subscriber_id = $1",
+        subscriber_id,
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to execute query: {:?}", e);
+        e
+    })?;
+    Ok(result.subscription_token)
 }
