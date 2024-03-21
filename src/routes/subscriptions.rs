@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
+use crate::routes::SubscriptionsStatus;
 
 /// Generate a random 25-characters-long case-sensitive subscription token.
 fn generate_subscription_token() -> String {
@@ -130,11 +131,12 @@ pub async fn insert_subscriber(
     let subscriber_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"INSERT INTO subscriptions (id, email, name, subscribed_at, status)
-        VALUES ($1, $2, $3, $4, 'pending_confirmation')"#,
+        VALUES ($1, $2, $3, $4, $5)"#,
         subscriber_id,
         new_subscriber.email.as_ref(),
         new_subscriber.name.as_ref(),
         Utc::now(),
+        SubscriptionsStatus::PendingConfirmation as SubscriptionsStatus,
     );
     transaction
         .execute(query)

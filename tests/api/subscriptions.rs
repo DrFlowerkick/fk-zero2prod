@@ -1,6 +1,7 @@
 //! tests/api/subscriptions.rs
 
 use crate::helpers::spawn_app;
+use zero2prod::routes::SubscriptionsStatus;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
@@ -39,14 +40,14 @@ async fn subscribe_persists_the_new_subscriber() {
     test_app.post_subscriptions(body.into()).await;
 
     // Assert
-    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions")
+    let saved = sqlx::query!("SELECT email, name, status AS \"status: SubscriptionsStatus\" FROM subscriptions")
         .fetch_one(&test_app.db_pool)
         .await
         .expect("Failed to fetch saved subscription.");
 
     assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
-    assert_eq!(saved.status, "pending_confirmation");
+    assert_eq!(saved.status, SubscriptionsStatus::PendingConfirmation);
 }
 
 #[tokio::test]
