@@ -1,9 +1,9 @@
 //! tests/api/subscriptions.rs
 
 use crate::helpers::spawn_app;
-use zero2prod::routes::SubscriptionsStatus;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
+use zero2prod::routes::SubscriptionsStatus;
 
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
@@ -40,10 +40,12 @@ async fn subscribe_persists_the_new_subscriber() {
     test_app.post_subscriptions(body.into()).await;
 
     // Assert
-    let saved = sqlx::query!("SELECT email, name, status AS \"status: SubscriptionsStatus\" FROM subscriptions")
-        .fetch_one(&test_app.db_pool)
-        .await
-        .expect("Failed to fetch saved subscription.");
+    let saved = sqlx::query!(
+        "SELECT email, name, status AS \"status: SubscriptionsStatus\" FROM subscriptions"
+    )
+    .fetch_one(&test_app.db_pool)
+    .await
+    .expect("Failed to fetch saved subscription.");
 
     assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
@@ -143,7 +145,8 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
 }
 
 #[tokio::test]
-async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_links_and_recievers() {
+async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_links_and_recievers(
+) {
     // Arrange
     let test_app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -161,11 +164,18 @@ async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_
 
     // Assert
     assert_eq!(200, response_first.status().as_u16(), "first subscription");
-    assert_eq!(200, response_second.status().as_u16(), "second subscription");
+    assert_eq!(
+        200,
+        response_second.status().as_u16(),
+        "second subscription"
+    );
     let confirmation_links_first = test_app.get_confirmation_links(&email_requests[0]);
     let confirmation_links_second = test_app.get_confirmation_links(&email_requests[1]);
     assert_eq!(confirmation_links_first, confirmation_links_second);
     let reciever_email_first = test_app.get_reciever_email(&email_requests[0]);
     let reciever_email_second = test_app.get_reciever_email(&email_requests[1]);
-    assert_eq!(reciever_email_first.as_ref(), reciever_email_second.as_ref());
+    assert_eq!(
+        reciever_email_first.as_ref(),
+        reciever_email_second.as_ref()
+    );
 }

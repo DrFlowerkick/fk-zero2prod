@@ -1,5 +1,6 @@
 //! src/routes/subscriptions_confirm.rs
 
+use crate::routes::get_status_from_subscriber_id;
 use actix_web::{web, HttpResponse};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -19,7 +20,10 @@ pub struct Parameters {
 impl Parameters {
     pub fn is_valid(&self) -> bool {
         // check if any char of subscription_token is not alphanumeric
-        !self.subscription_token.chars().any(|c| !c.is_alphanumeric())
+        !self
+            .subscription_token
+            .chars()
+            .any(|c| !c.is_alphanumeric())
     }
 }
 
@@ -37,30 +41,22 @@ pub async fn confirm(parameters: web::Query<Parameters>, pool: web::Data<PgPool>
         None => HttpResponse::NotFound().finish(),
         Some(subscriber_id) => match confirm_subscriber(&pool, subscriber_id).await {
             Err(_) => HttpResponse::InternalServerError().finish(),
-            Ok(new_confirmation) => if new_confirmation {
-                HttpResponse::Ok().json("status changed from pending_confirmation to confirmed.")
-            } else {
-                HttpResponse::Ok().finish()
-            },
-        }
+            Ok(new_confirmation) => {
+                if new_confirmation {
+                    HttpResponse::Ok()
+                        .json("status changed from pending_confirmation to confirmed.")
+                } else {
+                    HttpResponse::Ok().finish()
+                }
+            }
+        },
     }
 }
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, pool))]
 pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bool, sqlx::Error> {
-    // check status if entr with subscriber_id
-    match sqlx::query!(
-        "SELECT status AS \"status: SubscriptionsStatus\" FROM subscriptions \
-        WHERE id = $1",
-        subscriber_id,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        e
-    })?
-    .status {
+    // check status of entry with subscriber_id
+    match get_status_from_subscriber_id(pool, subscriber_id).await? {
         SubscriptionsStatus::PendingConfirmation => {
             // Update status to confirmed
             sqlx::query!(
@@ -75,9 +71,9 @@ pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bo
                 e
             })?;
             Ok(true)
-        },
+        }
         // subscription is already confirmed
-        SubscriptionsStatus::Confirmed => Ok(false)
+        SubscriptionsStatus::Confirmed => Ok(false),
     }
 }
 
