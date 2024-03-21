@@ -41,14 +41,22 @@ impl EmailClient {
             html_body: html_content,
             text_body: text_content,
         };
-        self.http_client
+        let email_request = self
+            .http_client
             .post(&url)
             .header(
                 "X-Postmark-Server-Token",
                 self.authorization_token.expose_secret(),
             )
+            .header("Accept", "application/json")
             .json(&request_body)
-            .send()
+            .build()?;
+        //dbg!(email_request.headers());
+        //dbg!(serde_json::from_slice::<serde_json::Value>(&email_request.body().unwrap().as_bytes().unwrap()).unwrap());
+        //dbg!(email_request.url());
+
+        self.http_client
+            .execute(email_request)
             .await?
             .error_for_status()?;
         Ok(())

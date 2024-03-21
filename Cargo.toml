@@ -13,22 +13,6 @@ name = "zero2prod"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-# On Windows
-# ```
-# cargo install -f cargo-binutils
-# rustup component add llvm-tools-preview
-# ```
-# [target.x86_64-pc-windows-msvc]
-# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-# [target.x86_64-pc-windows-gnu]
-# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-
-# On Linux:
-# - Ubuntu, `sudo apt-get install lld clang`
-# - Arch, `sudo pacman -S lld clang`
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "linker=clang", "-C", "link-arg=-fuse-ld=lld"]
-
 [dependencies]
 actix-web = "4"
 chrono = { version = "0.4.22", default-features = false, features = ["clock"] }
@@ -46,6 +30,7 @@ secrecy = { version = "0.8", features = ["serde"] }
 unicode-segmentation = "1"
 validator = "0.16"
 rand = { version = "0.8", features=["std_rng"] }
+serde_json = "1"
 
 # Using table-like toml syntax to avoid a super-long line!
 [dependencies.sqlx]

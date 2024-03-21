@@ -9,6 +9,6 @@ database:
   database_name: "newsletter"
 emailclient:
   base_url: "http://127.0.0.1"
-  sender_email: "test@gmail.com"
+  sender_email: "noreply@ilkablumentritt.de"
   timeout_milliseconds: 10000
   token: "POSTMARK_API_TEST"
