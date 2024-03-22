@@ -1,7 +1,7 @@
 //! src/domain/subscriber_name.rs
 
-use unicode_segmentation::UnicodeSegmentation;
 use crate::domain::NewSubscriberError;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug)]
 pub struct SubscriberName(String);

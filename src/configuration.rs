@@ -6,7 +6,7 @@ use sqlx::{
     ConnectOptions,
 };
 
-use crate::domain::{SubscriberEmail, NewSubscriberError};
+use crate::domain::{NewSubscriberError, SubscriberEmail};
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {

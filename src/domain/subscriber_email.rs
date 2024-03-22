@@ -1,7 +1,7 @@
 //! src/domain/subscriber_email.rs
 
-use validator::validate_email;
 use crate::domain::NewSubscriberError;
+use validator::validate_email;
 
 #[derive(Debug)]
 pub struct SubscriberEmail(String);

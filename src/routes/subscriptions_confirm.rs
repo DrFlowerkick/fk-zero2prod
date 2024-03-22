@@ -1,8 +1,10 @@
 //! src/routes/subscriptions_confirm.rs
 
+use crate::app_error::AppError;
+use crate::domain::{NewSubscriberError, SubscriberToken};
 use crate::routes::get_status_from_subscriber_id;
-use crate::domain::SubscriberToken;
 use actix_web::{web, HttpResponse};
+use anyhow::Context;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -14,33 +16,30 @@ pub enum SubscriptionsStatus {
 }
 
 #[tracing::instrument(name = "Confirm a pending subscriber", skip(subscriber_token, pool))]
-pub async fn confirm(subscriber_token: web::Query<SubscriberToken>, pool: web::Data<PgPool>) -> HttpResponse {
-    if subscriber_token.is_valid().is_err() {
-        return HttpResponse::BadRequest().finish();
-    }
-    let id = match get_subscriber_id_from_token(&pool, &subscriber_token).await {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
-    };
+pub async fn confirm(
+    subscriber_token: web::Query<SubscriberToken>,
+    pool: web::Data<PgPool>,
+) -> Result<HttpResponse, AppError> {
+    subscriber_token.is_valid()?;
+    let id = get_subscriber_id_from_token(&pool, &subscriber_token).await?;
     match id {
         // Non-existing token!
-        None => HttpResponse::NotFound().finish(),
-        Some(subscriber_id) => match confirm_subscriber(&pool, subscriber_id).await {
-            Err(_) => HttpResponse::InternalServerError().finish(),
-            Ok(new_confirmation) => {
-                if new_confirmation {
-                    HttpResponse::Ok()
-                        .json("status changed from pending_confirmation to confirmed.")
-                } else {
-                    HttpResponse::Ok().finish()
-                }
+        None => Err(NewSubscriberError::InvalidToken(
+            subscriber_token.as_ref().to_owned(),
+        ))?,
+        Some(subscriber_id) => {
+            if confirm_subscriber(&pool, subscriber_id).await? {
+                Ok(HttpResponse::Ok()
+                    .json("status changed from pending_confirmation to confirmed."))
+            } else {
+                Ok(HttpResponse::Ok().finish())
             }
-        },
+        }
     }
 }
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, pool))]
-pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bool, sqlx::Error> {
+pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bool, AppError> {
     // check status of entry with subscriber_id
     match get_status_from_subscriber_id(pool, subscriber_id).await? {
         SubscriptionsStatus::PendingConfirmation => {
@@ -52,10 +51,9 @@ pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bo
             )
             .execute(pool)
             .await
-            .map_err(|e| {
-                tracing::error!("Failed to execute query: {:?}", e);
-                e
-            })?;
+            .context(
+                "Failed to update status of subscriber_id for confirmation of subscription.",
+            )?;
             Ok(true)
         }
         // subscription is already confirmed
@@ -67,7 +65,7 @@ pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bo
 pub async fn get_subscriber_id_from_token(
     pool: &PgPool,
     subscription_token: &SubscriberToken,
-) -> Result<Option<Uuid>, sqlx::Error> {
+) -> Result<Option<Uuid>, AppError> {
     let result = sqlx::query!(
         "SELECT subscriber_id FROM subscription_tokens \
         WHERE subscription_token = $1",
@@ -75,9 +73,6 @@ pub async fn get_subscriber_id_from_token(
     )
     .fetch_optional(pool)
     .await
-    .map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        e
-    })?;
+    .context("Failed to read subscriber_id of subscription_token from database.")?;
     Ok(result.map(|r| r.subscriber_id))
 }

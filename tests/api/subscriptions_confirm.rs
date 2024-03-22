@@ -109,7 +109,7 @@ async fn the_link_returned_by_subscribe_returns_a_200_without_a_json_body_if_cal
 }
 
 #[tokio::test]
-async fn confirmation_link_with_not_existing_token_returns_a_404() {
+async fn confirmation_link_with_not_existing_token_returns_a_400() {
     // Arrange
     let test_app = spawn_app().await;
 
@@ -130,7 +130,7 @@ async fn confirmation_link_with_not_existing_token_returns_a_404() {
     let response = reqwest::get(confirmation_link).await.unwrap();
 
     // Assert
-    assert_eq!(response.status().as_u16(), 404);
+    assert_eq!(response.status().as_u16(), 400);
 }
 
 #[tokio::test]

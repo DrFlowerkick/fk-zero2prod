@@ -1,6 +1,8 @@
 //! src/email_client.rs
 
+use crate::app_error::AppError;
 use crate::domain::SubscriberEmail;
+use anyhow::Context;
 use reqwest::Client;
 use secrecy::{ExposeSecret, Secret};
 
@@ -32,7 +34,7 @@ impl EmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), AppError> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref(),
@@ -41,8 +43,7 @@ impl EmailClient {
             html_body: html_content,
             text_body: text_content,
         };
-        self
-            .http_client
+        self.http_client
             .post(&url)
             .header(
                 "X-Postmark-Server-Token",
@@ -51,8 +52,10 @@ impl EmailClient {
             .header("Accept", "application/json")
             .json(&request_body)
             .send()
-            .await?
-            .error_for_status()?;
+            .await
+            .context("Failed to execute request to email server.")?
+            .error_for_status()
+            .context("Response of request to email server returned an error.")?;
         Ok(())
     }
 }
