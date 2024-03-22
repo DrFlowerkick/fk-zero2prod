@@ -6,7 +6,7 @@ use sqlx::{
     ConnectOptions,
 };
 
-use crate::domain::SubscriberEmail;
+use crate::domain::{SubscriberEmail, NewSubscriberError};
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {
@@ -66,7 +66,7 @@ pub struct EmailClientSettings {
 }
 
 impl EmailClientSettings {
-    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+    pub fn sender(&self) -> Result<SubscriberEmail, NewSubscriberError> {
         SubscriberEmail::parse(self.sender_email.clone())
     }
     pub fn timeout(&self) -> std::time::Duration {

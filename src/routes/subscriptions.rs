@@ -2,25 +2,14 @@
 
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 use sqlx::postgres::PgDatabaseError;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
+use crate::domain::{NewSubscriber, NewSubscriberError, SubscriberEmail, SubscriberName, SubscriberToken};
 use crate::email_client::EmailClient;
 use crate::routes::SubscriptionsStatus;
 use crate::startup::ApplicationBaseUrl;
-
-/// Generate a random 25-characters-long case-sensitive subscription token.
-fn generate_subscription_token() -> String {
-    let mut rng = thread_rng();
-    std::iter::repeat_with(|| rng.sample(Alphanumeric))
-        .map(char::from)
-        .take(25)
-        .collect()
-}
 
 /// Checks if sqlx:Error results from trying to subscribe the same email twice
 fn is_email_subscribed_twice_err(err: &sqlx::Error) -> bool {
@@ -49,7 +38,7 @@ pub struct FormData {
 }
 
 impl TryFrom<FormData> for NewSubscriber {
-    type Error = String;
+    type Error = NewSubscriberError;
 
     fn try_from(value: FormData) -> Result<Self, Self::Error> {
         let name = SubscriberName::parse(value.name)?;
@@ -127,13 +116,13 @@ pub async fn subscribe(
 pub async fn subscribe_transaction(
     new_subscriber: &NewSubscriber,
     pool: &PgPool,
-) -> Result<String, sqlx::Error> {
+) -> Result<SubscriberToken, sqlx::Error> {
     // init transaction
     let mut transaction = pool.begin().await?;
     // insert subscriber in transaction
     let subscriber_id = insert_subscriber(&mut transaction, new_subscriber).await?;
     // insert token in transaction
-    let subscription_token = generate_subscription_token();
+    let subscription_token = SubscriberToken::generate_subscription_token();
     store_token(&mut transaction, subscriber_id, &subscription_token).await?;
     // commit transaction
     transaction.commit().await?;
@@ -148,7 +137,7 @@ pub async fn subscribe_transaction(
 pub async fn fetch_token_of_subscriber(
     subscriber: &NewSubscriber,
     pool: &PgPool,
-) -> Result<String, sqlx::Error> {
+) -> Result<SubscriberToken, sqlx::Error> {
     // get uuid from subscription table with email
     let subscriber_id = get_subscriber_id_from_email(pool, subscriber).await?;
     // 2. get subscription token with uuid
@@ -188,12 +177,12 @@ pub async fn insert_subscriber(
 pub async fn store_token(
     transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
-    subscription_token: &str,
+    subscription_token: &SubscriberToken,
 ) -> Result<(), sqlx::Error> {
     let query = sqlx::query!(
         r#"INSERT INTO subscription_tokens (subscription_token, subscriber_id)
         VALUES ($1, $2)"#,
-        subscription_token,
+        subscription_token.as_ref(),
         subscriber_id
     );
     transaction.execute(query).await.map_err(|e| {
@@ -211,12 +200,12 @@ pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
     base_url: &str,
-    subscription_token: &str,
+    subscription_token: &SubscriberToken,
 ) -> Result<(), reqwest::Error> {
     // We create a (useless) confirmation link
     let confirmation_link = format!(
         "{}/subscriptions/confirm?subscription_token={}",
-        base_url, subscription_token
+        base_url, subscription_token.as_ref()
     );
     let plain_body = format!(
         "Welcome to our newsletter!\n
@@ -256,7 +245,7 @@ pub async fn get_subscriber_id_from_email(
 pub async fn get_token_from_subscriber_id(
     pool: &PgPool,
     subscriber_id: Uuid,
-) -> Result<String, sqlx::Error> {
+) -> Result<SubscriberToken, sqlx::Error> {
     let result = sqlx::query!(
         "SELECT subscription_token FROM subscription_tokens \
         WHERE subscriber_id = $1",
@@ -268,7 +257,9 @@ pub async fn get_token_from_subscriber_id(
         tracing::error!("Failed to execute query: {:?}", e);
         e
     })?;
-    Ok(result.subscription_token)
+    // ToDo: implement error handling to accept error from SubscriberToken::parse
+    let subscription_token = SubscriberToken::parse(result.subscription_token).unwrap();
+    Ok(subscription_token)
 }
 
 #[tracing::instrument(name = "Get status from subscriber_id", skip(subscriber_id, pool))]

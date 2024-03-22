@@ -1,6 +1,7 @@
 //! src/domain/subscriber_name.rs
 
 use unicode_segmentation::UnicodeSegmentation;
+use crate::domain::NewSubscriberError;
 
 #[derive(Debug)]
 pub struct SubscriberName(String);
@@ -15,7 +16,7 @@ impl SubscriberName {
     /// Returns an instance of `SubscriberName` if the input satisfies all
     /// our validation constraints on subscriber names.
     /// It panics otherwise.
-    pub fn parse(s: String) -> Result<SubscriberName, String> {
+    pub fn parse(s: String) -> Result<SubscriberName, NewSubscriberError> {
         // `.trim()` returns a view over the input `s` without trailing
         // whitespace-like characters.
         // `.is_empty` checks if the view contains any character.
@@ -33,7 +34,7 @@ impl SubscriberName {
         let forbidden_characters = ['/', '(', ')', '"', '<', '>', '\\', '{', '}'];
         let contains_forbidden_characters = s.chars().any(|g| forbidden_characters.contains(&g));
         if is_empty_or_whitespace || is_too_long || contains_forbidden_characters {
-            Err(format!("{} is not a valid subscriber name.", s))
+            Err(NewSubscriberError::InvalidName(s))
         } else {
             Ok(Self(s))
         }

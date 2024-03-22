@@ -41,7 +41,7 @@ impl EmailClient {
             html_body: html_content,
             text_body: text_content,
         };
-        let email_request = self
+        self
             .http_client
             .post(&url)
             .header(
@@ -50,13 +50,7 @@ impl EmailClient {
             )
             .header("Accept", "application/json")
             .json(&request_body)
-            .build()?;
-        //dbg!(email_request.headers());
-        //dbg!(serde_json::from_slice::<serde_json::Value>(&email_request.body().unwrap().as_bytes().unwrap()).unwrap());
-        //dbg!(email_request.url());
-
-        self.http_client
-            .execute(email_request)
+            .send()
             .await?
             .error_for_status()?;
         Ok(())

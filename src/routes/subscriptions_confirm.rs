@@ -1,6 +1,7 @@
 //! src/routes/subscriptions_confirm.rs
 
 use crate::routes::get_status_from_subscriber_id;
+use crate::domain::SubscriberToken;
 use actix_web::{web, HttpResponse};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -12,27 +13,12 @@ pub enum SubscriptionsStatus {
     Confirmed,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
-pub struct Parameters {
-    subscription_token: String,
-}
-
-impl Parameters {
-    pub fn is_valid(&self) -> bool {
-        // check if any char of subscription_token is not alphanumeric
-        !self
-            .subscription_token
-            .chars()
-            .any(|c| !c.is_alphanumeric())
-    }
-}
-
-#[tracing::instrument(name = "Confirm a pending subscriber", skip(parameters, pool))]
-pub async fn confirm(parameters: web::Query<Parameters>, pool: web::Data<PgPool>) -> HttpResponse {
-    if !parameters.is_valid() {
+#[tracing::instrument(name = "Confirm a pending subscriber", skip(subscriber_token, pool))]
+pub async fn confirm(subscriber_token: web::Query<SubscriberToken>, pool: web::Data<PgPool>) -> HttpResponse {
+    if subscriber_token.is_valid().is_err() {
         return HttpResponse::BadRequest().finish();
     }
-    let id = match get_subscriber_id_from_token(&pool, &parameters.subscription_token).await {
+    let id = match get_subscriber_id_from_token(&pool, &subscriber_token).await {
         Ok(id) => id,
         Err(_) => return HttpResponse::InternalServerError().finish(),
     };
@@ -80,12 +66,12 @@ pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bo
 #[tracing::instrument(name = "Get subscriber_id from token", skip(subscription_token, pool))]
 pub async fn get_subscriber_id_from_token(
     pool: &PgPool,
-    subscription_token: &str,
+    subscription_token: &SubscriberToken,
 ) -> Result<Option<Uuid>, sqlx::Error> {
     let result = sqlx::query!(
         "SELECT subscriber_id FROM subscription_tokens \
         WHERE subscription_token = $1",
-        subscription_token,
+        subscription_token.as_ref(),
     )
     .fetch_optional(pool)
     .await
