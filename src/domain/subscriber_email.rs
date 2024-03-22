@@ -1,16 +1,17 @@
 //! src/domain/subscriber_email.rs
 
+use crate::domain::NewSubscriberError;
 use validator::validate_email;
 
 #[derive(Debug)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
-    pub fn parse(s: String) -> Result<SubscriberEmail, String> {
+    pub fn parse(s: String) -> Result<SubscriberEmail, NewSubscriberError> {
         if validate_email(&s) {
             Ok(Self(s))
         } else {
-            Err(format!("{} is not a valid subscriber email.", s))
+            Err(NewSubscriberError::InvalidEmail(s))
         }
     }
 }
