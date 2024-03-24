@@ -2,8 +2,8 @@
 
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
+use crate::error::Z2PResult;
 use crate::routes::SubscriptionsStatus;
-use crate::{app_error::AppError, email_client};
 use actix_web::{web, HttpResponse};
 use anyhow::Context;
 use sqlx::PgPool;
@@ -28,12 +28,14 @@ pub async fn publish_newsletter(
     body: web::Json<BodyData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
-) -> Result<HttpResponse, AppError> {
+) -> Z2PResult<HttpResponse> {
     let subscribers = get_confirmed_subscribers(&pool).await?;
     for subscriber in subscribers {
+        let valid_email_from_database = SubscriberEmail::parse(subscriber.email.clone())
+            .with_context(|| format!("Read Invalid email {} from database", subscriber.email))?;
         email_client
             .send_email(
-                SubscriberEmail::parse(subscriber.email)?,
+                valid_email_from_database,
                 &body.title,
                 &body.content.html,
                 &body.content.text,
@@ -44,7 +46,7 @@ pub async fn publish_newsletter(
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
-async fn get_confirmed_subscribers(pool: &PgPool) -> Result<Vec<ConfirmedSubscriber>, AppError> {
+async fn get_confirmed_subscribers(pool: &PgPool) -> Z2PResult<Vec<ConfirmedSubscriber>> {
     let rows = sqlx::query_as!(
         ConfirmedSubscriber,
         r#"

@@ -1,7 +1,7 @@
 //! src/routes/subscriptions_confirm.rs
 
-use crate::app_error::AppError;
-use crate::domain::{NewSubscriberError, SubscriberToken};
+use crate::domain::{SubscriberToken, ValidationError};
+use crate::error::Z2PResult;
 use crate::routes::get_status_from_subscriber_id;
 use actix_web::{web, HttpResponse};
 use anyhow::Context;
@@ -19,12 +19,12 @@ pub enum SubscriptionsStatus {
 pub async fn confirm(
     subscriber_token: web::Query<SubscriberToken>,
     pool: web::Data<PgPool>,
-) -> Result<HttpResponse, AppError> {
+) -> Z2PResult<HttpResponse> {
     subscriber_token.is_valid()?;
     let id = get_subscriber_id_from_token(&pool, &subscriber_token).await?;
     match id {
         // Non-existing token!
-        None => Err(NewSubscriberError::InvalidToken(
+        None => Err(ValidationError::InvalidToken(
             subscriber_token.as_ref().to_owned(),
         ))?,
         Some(subscriber_id) => {
@@ -39,7 +39,7 @@ pub async fn confirm(
 }
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, pool))]
-pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bool, AppError> {
+pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Z2PResult<bool> {
     // check status of entry with subscriber_id
     match get_status_from_subscriber_id(pool, subscriber_id).await? {
         SubscriptionsStatus::PendingConfirmation => {
@@ -65,7 +65,7 @@ pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<bo
 pub async fn get_subscriber_id_from_token(
     pool: &PgPool,
     subscription_token: &SubscriberToken,
-) -> Result<Option<Uuid>, AppError> {
+) -> Z2PResult<Option<Uuid>> {
     let result = sqlx::query!(
         "SELECT subscriber_id FROM subscription_tokens \
         WHERE subscription_token = $1",
