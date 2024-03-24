@@ -10,7 +10,7 @@ use anyhow::Context;
 use base64::Engine;
 use secrecy::{Secret, ExposeSecret};
 use sqlx::PgPool;
-use sha3::Digest;
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 
 #[tracing::instrument(
     name = "Publish a newsletter issue",
@@ -111,28 +111,33 @@ fn basic_authentification(headers: &HeaderMap) -> Z2PResult<Credentials> {
 }
 
 async fn validate_credentials(credentials: Credentials, pool: &PgPool) -> Z2PResult<uuid::Uuid> {
-    let password_hash = sha3::Sha3_256::digest(
-        credentials.password.expose_secret().as_bytes()
-    );
-    // Lowercase hexadecimal encoding
-    let password_hash = format!("{:x}", password_hash);
-    let user_id: Option<_> = sqlx::query!(
+    let row: Option<_> = sqlx::query!(
         r#"
-        SELECT user_id
+        SELECT user_id, password_hash
         FROM users
-        WHERE username = $1 AND password_hash = $2
+        WHERE username = $1
         "#,
         credentials.username,
-        password_hash
     )
     .fetch_optional(pool)
     .await
-    .context("Failed to perform a query to validate autch credentials.")?;
+    .context("Failed to perform a query to retrieve stored credentials.")?;
 
-    user_id
-        .map(|row| row.user_id)
-        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
-        .map_err(Error::AuthError)
+    let (expected_password_hash, user_id) = row
+        .context("Unknown username for retrieval of stored credentials")
+        .map(|r| (r.password_hash, r.user_id))?;
+
+    let expected_password_hash = PasswordHash::new(&expected_password_hash)
+        .context("Failed to parse hash in PHC string format.")?;
+    
+    Argon2::default()
+        .verify_password(
+            credentials.password.expose_secret().as_bytes(),
+            &expected_password_hash
+        )
+        .context("Invalid password")?;
+    
+    Ok(user_id)
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
