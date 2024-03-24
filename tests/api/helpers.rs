@@ -77,6 +77,16 @@ impl TestApp {
         let reciever_email = SubscriberEmail::parse(reciever_email.to_owned()).unwrap();
         reciever_email
     }
+
+    /// Post newsletters
+    pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!("{}/newsletters", &self.address))
+            .json(&body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
 }
 
 /// Spin up an instance of our application

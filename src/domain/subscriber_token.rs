@@ -1,6 +1,6 @@
 //! src/domain/subscriber_token.rs
 
-use crate::domain::NewSubscriberError;
+use crate::domain::ValidationError;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
@@ -27,14 +27,14 @@ impl SubscriberToken {
         }
     }
     /// check if any char of subscription_token is not alphanumeric
-    pub fn is_valid(&self) -> Result<&str, NewSubscriberError> {
+    pub fn is_valid(&self) -> Result<&str, ValidationError> {
         if self
             .subscription_token
             .chars()
             .any(|c| !c.is_alphanumeric())
             || self.subscription_token.chars().count() != 25
         {
-            Err(NewSubscriberError::InvalidToken(
+            Err(ValidationError::InvalidToken(
                 self.subscription_token.to_owned(),
             ))
         } else {
@@ -42,7 +42,7 @@ impl SubscriberToken {
         }
     }
     /// parse string as token
-    pub fn parse(s: String) -> Result<SubscriberToken, NewSubscriberError> {
+    pub fn parse(s: String) -> Result<SubscriberToken, ValidationError> {
         let subscription_token = Self {
             subscription_token: s,
         };

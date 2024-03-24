@@ -1,7 +1,7 @@
 //! src/email_client.rs
 
-use crate::app_error::AppError;
 use crate::domain::SubscriberEmail;
+use crate::error::Z2PResult;
 use anyhow::Context;
 use reqwest::Client;
 use secrecy::{ExposeSecret, Secret};
@@ -30,11 +30,11 @@ impl EmailClient {
     }
     pub async fn send_email(
         &self,
-        recipient: SubscriberEmail,
+        recipient: &SubscriberEmail,
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), AppError> {
+    ) -> Z2PResult<()> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref(),
@@ -53,9 +53,19 @@ impl EmailClient {
             .json(&request_body)
             .send()
             .await
-            .context("Failed to execute request to email server.")?
+            .with_context(|| {
+                format!(
+                    "Failed to send email request for `{}` to email server.",
+                    recipient.as_ref()
+                )
+            })?
             .error_for_status()
-            .context("Response of request to email server returned an error.")?;
+            .with_context(|| {
+                format!(
+                    "Response of email request for `{}` to email server returned an error.",
+                    recipient.as_ref()
+                )
+            })?;
         Ok(())
     }
 }
@@ -146,7 +156,7 @@ mod tests {
 
         // Act
         let _ = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assert
@@ -167,7 +177,7 @@ mod tests {
 
         // Act
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assert
@@ -188,7 +198,7 @@ mod tests {
 
         // Act
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assert
@@ -213,7 +223,7 @@ mod tests {
 
         // Act
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assert

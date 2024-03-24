@@ -1,6 +1,7 @@
 //! src/routes/subscriptions.rs
 
-use std::error::Error;
+// required for source()
+use std::error::Error as StdError;
 
 use actix_web::{web, HttpResponse};
 use anyhow::Context;
@@ -9,16 +10,16 @@ use sqlx::postgres::PgDatabaseError;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::app_error::AppError;
 use crate::domain::{
-    NewSubscriber, NewSubscriberError, SubscriberEmail, SubscriberName, SubscriberToken,
+    NewSubscriber, SubscriberEmail, SubscriberName, SubscriberToken, ValidationError,
 };
 use crate::email_client::EmailClient;
+use crate::error::{Error, Z2PResult};
 use crate::routes::SubscriptionsStatus;
 use crate::startup::ApplicationBaseUrl;
 
-/// Checks if sqlx:Error results from trying to subscribe the same email twice
-fn is_email_subscribed_twice_err(err: &AppError) -> bool {
+/// Checks if err results from trying to subscribe the same email twice
+fn is_email_subscribed_twice_err(err: &Error) -> bool {
     if let Some(source_error) = err.source() {
         if let Some(sqlx::Error::Database(db_err)) = source_error.downcast_ref::<sqlx::Error>() {
             if db_err.is_unique_violation() {
@@ -46,7 +47,7 @@ pub struct FormData {
 }
 
 impl TryFrom<FormData> for NewSubscriber {
-    type Error = NewSubscriberError;
+    type Error = ValidationError;
 
     fn try_from(value: FormData) -> Result<Self, Self::Error> {
         let name = SubscriberName::parse(value.name)?;
@@ -68,7 +69,7 @@ pub async fn subscribe(
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
-) -> Result<HttpResponse, AppError> {
+) -> Z2PResult<HttpResponse> {
     let new_subscriber = form.0.try_into()?;
     let subscription_token = match subscribe_transaction(&new_subscriber, pool.as_ref()).await {
         Ok(new_subscription_token) => new_subscription_token,
@@ -108,7 +109,7 @@ pub async fn subscribe(
 pub async fn subscribe_transaction(
     new_subscriber: &NewSubscriber,
     pool: &PgPool,
-) -> Result<SubscriberToken, AppError> {
+) -> Z2PResult<SubscriberToken> {
     // init transaction
     let mut transaction = pool
         .begin()
@@ -135,7 +136,7 @@ pub async fn subscribe_transaction(
 pub async fn fetch_token_of_subscriber(
     subscriber: &NewSubscriber,
     pool: &PgPool,
-) -> Result<SubscriberToken, AppError> {
+) -> Z2PResult<SubscriberToken> {
     // get uuid from subscription table with email
     let subscriber_id = get_subscriber_id_from_email(pool, subscriber).await?;
     // 2. get subscription token with uuid
@@ -150,7 +151,7 @@ pub async fn fetch_token_of_subscriber(
 pub async fn insert_subscriber(
     transaction: &mut Transaction<'_, Postgres>,
     new_subscriber: &NewSubscriber,
-) -> Result<Uuid, AppError> {
+) -> Z2PResult<Uuid> {
     let subscriber_id = Uuid::new_v4();
     let query = sqlx::query!(
         r#"INSERT INTO subscriptions (id, email, name, subscribed_at, status)
@@ -176,7 +177,7 @@ pub async fn store_token(
     transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
     subscription_token: &SubscriberToken,
-) -> Result<(), AppError> {
+) -> Z2PResult<()> {
     let query = sqlx::query!(
         r#"INSERT INTO subscription_tokens (subscription_token, subscriber_id)
         VALUES ($1, $2)"#,
@@ -199,7 +200,7 @@ pub async fn send_confirmation_email(
     new_subscriber: NewSubscriber,
     base_url: &str,
     subscription_token: &SubscriberToken,
-) -> Result<(), AppError> {
+) -> Z2PResult<()> {
     // We create a (useless) confirmation link
     let confirmation_link = format!(
         "{}/subscriptions/confirm?subscription_token={}",
@@ -217,7 +218,7 @@ pub async fn send_confirmation_email(
         confirmation_link
     );
     email_client
-        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
 }
 
@@ -225,7 +226,7 @@ pub async fn send_confirmation_email(
 pub async fn get_subscriber_id_from_email(
     pool: &PgPool,
     new_subscriber: &NewSubscriber,
-) -> Result<Uuid, AppError> {
+) -> Z2PResult<Uuid> {
     let result = sqlx::query!(
         "SELECT id FROM subscriptions \
         WHERE email = $1",
@@ -241,7 +242,7 @@ pub async fn get_subscriber_id_from_email(
 pub async fn get_token_from_subscriber_id(
     pool: &PgPool,
     subscriber_id: Uuid,
-) -> Result<SubscriberToken, AppError> {
+) -> Z2PResult<SubscriberToken> {
     let result = sqlx::query!(
         "SELECT subscription_token FROM subscription_tokens \
         WHERE subscriber_id = $1",
@@ -250,7 +251,15 @@ pub async fn get_token_from_subscriber_id(
     .fetch_one(pool)
     .await
     .context("Failed to read subscription_token of subscriber_id from database")?;
-    let subscription_token = SubscriberToken::parse(result.subscription_token)?;
+    // use with_context instead of automatic validation error transformation, since
+    // invalid token has been read from database, which is an unexpected error.
+    let subscription_token = SubscriberToken::parse(result.subscription_token.clone())
+        .with_context(|| {
+            format!(
+                "Read invalid subscription token `{}` from database.",
+                result.subscription_token
+            )
+        })?;
     Ok(subscription_token)
 }
 
@@ -258,7 +267,7 @@ pub async fn get_token_from_subscriber_id(
 pub async fn get_status_from_subscriber_id(
     pool: &PgPool,
     subscriber_id: Uuid,
-) -> Result<SubscriptionsStatus, AppError> {
+) -> Z2PResult<SubscriptionsStatus> {
     // get status of entry with subscriber_id
     let result = sqlx::query!(
         "SELECT status AS \"status: SubscriptionsStatus\" FROM subscriptions \

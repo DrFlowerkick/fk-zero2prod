@@ -1,8 +1,10 @@
 //! src/app_error.rs
 
-use crate::domain::NewSubscriberError;
+use crate::domain::ValidationError;
 use actix_web::http::StatusCode;
 use actix_web::ResponseError;
+
+pub type Z2PResult<T> = Result<T, Error>;
 
 fn error_chain_fmt(
     e: &impl std::error::Error,
@@ -18,24 +20,24 @@ fn error_chain_fmt(
 }
 
 #[derive(thiserror::Error)]
-pub enum AppError {
+pub enum Error {
     #[error("Invalid input for subscription")]
-    SubscriptionError(#[from] NewSubscriberError),
+    SubscriptionError(#[from] ValidationError),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
 
-impl std::fmt::Debug for AppError {
+impl std::fmt::Debug for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
     }
 }
 
-impl ResponseError for AppError {
+impl ResponseError for Error {
     fn status_code(&self) -> reqwest::StatusCode {
         match self {
-            AppError::SubscriptionError(_) => StatusCode::BAD_REQUEST,
-            AppError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::SubscriptionError(_) => StatusCode::BAD_REQUEST,
+            Error::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
