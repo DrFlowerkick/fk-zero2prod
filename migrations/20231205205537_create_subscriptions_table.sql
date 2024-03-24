@@ -1,4 +1,4 @@
--- Add migration script here
+-- migrations/20231205205537_create_subscriptions_table.sql
 -- Create Subscriptions Table
 CREATE TABLE subscriptions(
     id uuid NOT NULL,

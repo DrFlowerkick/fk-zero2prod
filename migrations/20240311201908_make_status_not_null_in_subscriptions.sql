@@ -1,4 +1,4 @@
--- Add migration script here
+-- migrations/20240311201908_make_status_not_null_in_subscriptions.sql
 -- We wrap the whole migration in a transaction to make sure
 -- it succeeds or fails atomically. We will discuss SQL transactions
 -- in more details towards the end of this chapter!
