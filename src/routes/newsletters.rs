@@ -10,6 +10,7 @@ use anyhow::Context;
 use base64::Engine;
 use secrecy::{Secret, ExposeSecret};
 use sqlx::PgPool;
+use sha3::Digest;
 
 #[tracing::instrument(
     name = "Publish a newsletter issue",
@@ -110,14 +111,19 @@ fn basic_authentification(headers: &HeaderMap) -> Z2PResult<Credentials> {
 }
 
 async fn validate_credentials(credentials: Credentials, pool: &PgPool) -> Z2PResult<uuid::Uuid> {
+    let password_hash = sha3::Sha3_256::digest(
+        credentials.password.expose_secret().as_bytes()
+    );
+    // Lowercase hexadecimal encoding
+    let password_hash = format!("{:x}", password_hash);
     let user_id: Option<_> = sqlx::query!(
         r#"
         SELECT user_id
         FROM users
-        WHERE username = $1 AND password = $2
+        WHERE username = $1 AND password_hash = $2
         "#,
         credentials.username,
-        credentials.password.expose_secret()
+        password_hash
     )
     .fetch_optional(pool)
     .await
