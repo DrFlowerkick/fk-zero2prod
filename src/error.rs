@@ -1,8 +1,8 @@
 //! src/app_error.rs
 
 use crate::domain::ValidationError;
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
+use actix_web::http::{StatusCode, header, header::HeaderValue};
+use actix_web::{HttpResponse, ResponseError};
 
 pub type Z2PResult<T> = Result<T, Error>;
 
@@ -23,6 +23,8 @@ fn error_chain_fmt(
 pub enum Error {
     #[error("Invalid input for subscription")]
     SubscriptionError(#[from] ValidationError),
+    #[error("Authentification failed")]
+    AuthError(#[source] anyhow::Error),
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
@@ -34,10 +36,33 @@ impl std::fmt::Debug for Error {
 }
 
 impl ResponseError for Error {
-    fn status_code(&self) -> reqwest::StatusCode {
+    fn error_response(&self) -> HttpResponse {
         match self {
-            Error::SubscriptionError(_) => StatusCode::BAD_REQUEST,
-            Error::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::SubscriptionError(_) => {
+                HttpResponse::new(StatusCode::BAD_REQUEST)
+            },
+            Error::AuthError(_) => {
+                let mut response = HttpResponse::new(StatusCode::UNAUTHORIZED);
+                let header_value = HeaderValue::from_str(r#"Basic realm="publish""#).unwrap();
+                response
+                    .headers_mut()
+                    // actix_web::http::header provides a collection of constants
+                    // for the names of several well-known/standard HTTP headers
+                    .insert(header::WWW_AUTHENTICATE, header_value);
+                response
+            },
+            Error::UnexpectedError(_) => {
+                HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR)
+            },
+        }
+    }
+}
+
+impl Error {
+    pub fn convert_unexpected_to_auth_error(self) -> Self {
+        match self {
+            Error::UnexpectedError(err) => Error::AuthError(err),
+            _ => self
         }
     }
 }
