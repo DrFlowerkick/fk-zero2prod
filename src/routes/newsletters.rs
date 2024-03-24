@@ -2,7 +2,7 @@
 
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
-use crate::error::Z2PResult;
+use crate::error::{Error, Z2PResult};
 use crate::routes::SubscriptionsStatus;
 use actix_web::{web, HttpResponse};
 use anyhow::Context;
@@ -21,7 +21,7 @@ pub struct Content {
 }
 
 struct ConfirmedSubscriber {
-    email: String,
+    email: SubscriberEmail,
 }
 
 pub async fn publish_newsletter(
@@ -31,24 +31,37 @@ pub async fn publish_newsletter(
 ) -> Z2PResult<HttpResponse> {
     let subscribers = get_confirmed_subscribers(&pool).await?;
     for subscriber in subscribers {
-        let valid_email_from_database = SubscriberEmail::parse(subscriber.email.clone())
-            .with_context(|| format!("Read Invalid email {} from database", subscriber.email))?;
-        email_client
-            .send_email(
-                valid_email_from_database,
-                &body.title,
-                &body.content.html,
-                &body.content.text,
-            )
-            .await?;
+        match subscriber {
+            Ok(subscriber) => {
+                email_client
+                    .send_email(
+                        &subscriber.email,
+                        &body.title,
+                        &body.content.html,
+                        &body.content.text,
+                    )
+                    .await?;
+            }
+            Err(err) => {
+                tracing::warn!(
+                    // We record the error chain as a structured field on the log record
+                    error.cause_chain = ?err,
+                    // Using `\` to split a long string literal over
+                    // two lines, without creating a `\n` character
+                    "Skiping a confirmed subscriber. \
+                    Thier stored contact details are invalid.",
+                );
+            }
+        }
     }
     Ok(HttpResponse::Ok().finish())
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
-async fn get_confirmed_subscribers(pool: &PgPool) -> Z2PResult<Vec<ConfirmedSubscriber>> {
-    let rows = sqlx::query_as!(
-        ConfirmedSubscriber,
+async fn get_confirmed_subscribers(
+    pool: &PgPool,
+) -> Z2PResult<Vec<Z2PResult<ConfirmedSubscriber>>> {
+    let confirmed_subscribers = sqlx::query!(
         r#"
         SELECT email
         FROM subscriptions
@@ -58,6 +71,13 @@ async fn get_confirmed_subscribers(pool: &PgPool) -> Z2PResult<Vec<ConfirmedSubs
     )
     .fetch_all(pool)
     .await
-    .context("Failed to read confirmed subscribers from database.")?;
-    Ok(rows)
+    .context("Failed to read confirmed subscribers from database.")?
+    .into_iter()
+    .map(|r| {
+        SubscriberEmail::parse(r.email)
+            .map(|email| ConfirmedSubscriber { email })
+            .map_err(Error::from)
+    })
+    .collect();
+    Ok(confirmed_subscribers)
 }

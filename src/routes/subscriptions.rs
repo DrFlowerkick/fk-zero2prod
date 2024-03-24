@@ -218,7 +218,7 @@ pub async fn send_confirmation_email(
         confirmation_link
     );
     email_client
-        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
 }
 
@@ -251,7 +251,15 @@ pub async fn get_token_from_subscriber_id(
     .fetch_one(pool)
     .await
     .context("Failed to read subscription_token of subscriber_id from database")?;
-    let subscription_token = SubscriberToken::parse(result.subscription_token)?;
+    // use with_context instead of automatic validation error transformation, since
+    // invalid token has been read from database, which is an unexpected error.
+    let subscription_token = SubscriberToken::parse(result.subscription_token.clone())
+        .with_context(|| {
+            format!(
+                "Read invalid subscription token `{}` from database.",
+                result.subscription_token
+            )
+        })?;
     Ok(subscription_token)
 }
 
