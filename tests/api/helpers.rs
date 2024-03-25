@@ -1,11 +1,11 @@
 //! tests/api/helpers.rs
 
+use argon2::password_hash::SaltString;
+use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use once_cell::sync::Lazy;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use wiremock::MockServer;
-use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHasher};
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::SubscriberEmail;
 use zero2prod::startup::{get_connection_pool, Application};
@@ -46,10 +46,14 @@ impl TestUser {
         let salt = SaltString::generate(&mut rand::thread_rng());
         // We don't care about the exact Argon2 parameters here
         // given that it's for testing purposes!
-        let password_hash = Argon2::default()
-            .hash_password(self.password.as_bytes(), &salt)
-            .unwrap()
-            .to_string();
+        let password_hash = Argon2::new(
+            Algorithm::Argon2id,
+            Version::V0x13,
+            Params::new(15_000, 2, 1, None).unwrap(),
+        )
+        .hash_password(self.password.as_bytes(), &salt)
+        .unwrap()
+        .to_string();
         sqlx::query!(
             "INSERT INTO users (user_id, username, password_hash)
             VALUES ($1, $2, $3)",
@@ -68,7 +72,7 @@ pub struct TestApp {
     pub port: u16,
     pub db_pool: PgPool,
     pub email_server: MockServer,
-    test_user: TestUser,
+    pub test_user: TestUser,
 }
 
 impl TestApp {
