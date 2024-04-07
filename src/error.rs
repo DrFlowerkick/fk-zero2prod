@@ -54,9 +54,7 @@ impl ResponseError for Error {
                     .insert(header::WWW_AUTHENTICATE, header_value);
                 response
             }
-            Error::LoginError(_) => {
-                HttpResponse::build(StatusCode::UNAUTHORIZED).body(format!("{:?}", &self))
-            }
+            Error::LoginError(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
             Error::UnexpectedError(_) => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
         }
     }
