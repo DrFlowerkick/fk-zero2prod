@@ -36,9 +36,6 @@ base64 = "0.21"
 argon2 = { version = "0.4", features = ["std"] }
 urlencoding = "2"
 htmlescape = "0.3"
-hmac = { version = "0.12", features = ["std"] }
-sha2 = "0.10"
-hex = "0.4"
 
 # Using table-like toml syntax to avoid a super-long line!
 [dependencies.sqlx]
@@ -55,7 +52,7 @@ features = [
 [dependencies.reqwest]
 version = "0.11"
 default-features = false
-features = ["json", "rustls-tls"]
+features = ["json", "rustls-tls", "cookies"]
 
 # only needed for testing
 [dev-dependencies]
