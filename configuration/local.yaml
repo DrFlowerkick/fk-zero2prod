@@ -9,3 +9,5 @@ database:
 emailclient:
   # set this on digital via APP_EMAILCLIENT__TOKEN
   token: "POSTMARK_API_TEST"
+# set this on digital via APP_REDIS_URI
+redis_uri: "redis://127.0.0.1:6379"
