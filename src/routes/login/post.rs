@@ -3,7 +3,8 @@
 use crate::authentication::{validate_credentials, Credentials};
 use crate::error::Error;
 use crate::session_state::TypedSession;
-use actix_web::{error::InternalError, http::header::LOCATION, web, HttpResponse};
+use crate::utils::see_other;
+use actix_web::{error::InternalError, web, HttpResponse};
 use actix_web_flash_messages::FlashMessage;
 use secrecy::Secret;
 use sqlx::PgPool;
@@ -35,9 +36,7 @@ pub async fn login(
             session
                 .insert_user_id(user_id)
                 .map_err(|e| login_redirect(Error::UnexpectedError(e.into())))?;
-            Ok(HttpResponse::SeeOther()
-                .insert_header((LOCATION, "/admin/dashboard"))
-                .finish())
+            Ok(see_other("/admin/dashboard"))
         }
         Err(e) => Err(login_redirect(Error::auth_error_to_login_error(e))),
     }
@@ -45,8 +44,6 @@ pub async fn login(
 
 fn login_redirect(e: Error) -> InternalError<Error> {
     FlashMessage::error(e.to_string()).send();
-    let response = HttpResponse::SeeOther()
-        .insert_header((LOCATION, "/login"))
-        .finish();
+    let response = see_other("/login");
     InternalError::from_response(e, response)
 }
