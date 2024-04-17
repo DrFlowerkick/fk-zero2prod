@@ -1,6 +1,6 @@
 //! src/routes/admin/password/post.rs
 
-use crate::authentication::{validate_credentials, AuthError, Credentials};
+use crate::authentication::{change_password_in_db, validate_credentials, AuthError, Credentials};
 use crate::routes::admin::dashboard::get_username;
 use crate::session_state::TypedSession;
 use crate::utils::{e500, see_other};
@@ -58,5 +58,9 @@ pub async fn change_password(
         FlashMessage::error("The new password is unvalid.").send();
         return Ok(see_other("/admin/password"));
     }
-    todo!()
+    change_password_in_db(user_id, form.0.new_password, &pool)
+        .await
+        .map_err(e500)?;
+    FlashMessage::error("Your password has been changed.").send();
+    Ok(see_other("/admin/password"))
 }
