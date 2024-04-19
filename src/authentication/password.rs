@@ -1,4 +1,4 @@
-//! src/authentication.rs
+//! src/authentication/password.rs
 
 use crate::error::error_chain_fmt;
 use crate::telemetry::spawn_blocking_with_tracing;
