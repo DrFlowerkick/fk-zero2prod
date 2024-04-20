@@ -40,6 +40,8 @@ htmlescape = "0.3"
 actix-web-flash-messages = { version = "0.4", features = ["cookies"] }
 actix-session = { version = "0.7", features = ["redis-rs-tls-session"] }
 actix-web-lab = "0.18"
+askama = { version = "0.12.1", features = ["with-actix-web"] }
+askama_actix = "0.14.0"
 
 # Using table-like toml syntax to avoid a super-long line!
 [dependencies.sqlx]

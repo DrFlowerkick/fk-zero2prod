@@ -1,9 +1,12 @@
 //! src/routes/home/mod.rs
 
-use actix_web::{http::header::ContentType, HttpResponse};
+use actix_web::Responder;
+use askama_actix::Template;
 
-pub async fn home() -> HttpResponse {
-    HttpResponse::Ok()
-        .content_type(ContentType::html())
-        .body(include_str!("home.html"))
+#[derive(Template)]
+#[template(path = "home.html")]
+struct HomeTemplate{}
+
+pub async fn home() -> impl Responder {
+    HomeTemplate{}
 }
