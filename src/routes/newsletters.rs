@@ -23,12 +23,14 @@ pub async fn publish_newsletter(
     email_client: web::Data<EmailClient>,
     request: HttpRequest,
 ) -> Z2PResult<HttpResponse> {
+    // check credentials
     let credentials = basic_authentification(request.headers())?;
     tracing::Span::current().record("username", &tracing::field::display(&credentials.username));
     let user_id = validate_credentials(credentials, &pool)
         .await
         .map_err(Error::auth_error_to_basic_auth_error)?;
     tracing::Span::current().record("user_id", &tracing::field::display(&user_id));
+    // send newsletters
     let subscribers = get_confirmed_subscribers(&pool).await?;
     for subscriber in subscribers {
         match subscriber {
