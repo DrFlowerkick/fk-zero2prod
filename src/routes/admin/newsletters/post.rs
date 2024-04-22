@@ -1,32 +1,46 @@
 //! src/routes/admin/newsletters/post.rs
 
-use actix_web::{HttpResponse, web};
-use sqlx::PgPool;
+use actix_web::{web, HttpResponse};
+use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
+use sqlx::PgPool;
 
-use crate::email_client::EmailClient;
-use crate::error::{Z2PResult, Error};
 use crate::domain::SubscriberEmail;
+use crate::email_client::EmailClient;
+use crate::error::{Error, Z2PResult};
 use crate::routes::SubscriptionsStatus;
+use crate::utils::{e500, see_other};
 
-#[derive(serde::Deserialize)]
-pub struct FormData {
-    title: String,
-    html_content: String,
-    text_content: String,
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct NewsletterFormData {
+    pub title: String,
+    pub html_content: String,
+    pub text_content: String,
 }
 
-#[tracing::instrument(
-    name = "Publish a newsletter issue",
-    skip(form, pool, email_client)
-)]
+#[tracing::instrument(name = "Publish a newsletter issue", skip(form, pool, email_client))]
 pub async fn publish_newsletter(
-    form: web::Form<FormData>,
+    form: web::Form<NewsletterFormData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
-) -> Z2PResult<HttpResponse> {
-    let subscribers = get_confirmed_subscribers(&pool).await?;
-    for subscriber in subscribers {
+) -> Result<HttpResponse, actix_web::Error> {
+    if form.0.title.is_empty() {
+        FlashMessage::error("You must set a title for your newsletter.").send();
+        return Ok(see_other("/admin/newsletters"));
+    }
+    if form.0.html_content.is_empty() && form.0.text_content.is_empty() {
+        FlashMessage::error("You must set content for your newsletter.").send();
+        return Ok(see_other("/admin/newsletters"));
+    }
+    // get subscribers
+    let subscribers = get_confirmed_subscribers(&pool).await.map_err(e500)?;
+
+    if subscribers.is_empty() {
+        FlashMessage::error("You have no confirmed subscribers to send your newsletter to.").send();
+        return Ok(see_other("/admin/newsletters"));
+    }
+    let mut n_invalid_subscriber_emails = 0;
+    for subscriber in &subscribers {
         match subscriber {
             Ok(subscriber) => {
                 email_client
@@ -47,14 +61,17 @@ pub async fn publish_newsletter(
                     "Skiping a confirmed subscriber. \
                     Thier stored contact details are invalid.",
                 );
+                n_invalid_subscriber_emails += 1;
             }
         }
     }
-    Ok(HttpResponse::Ok().finish())
+    if n_invalid_subscriber_emails > 0 {
+        FlashMessage::error("You have at least one invalid subscriber. Check your logs.").send();
+        return Ok(see_other("/admin/newsletters"));
+    }
+    FlashMessage::error("Newsletter has been sent.").send();
+    Ok(see_other("/admin/newsletters"))
 }
-
-
-
 
 struct ConfirmedSubscriber {
     email: SubscriberEmail,

@@ -3926,7 +3926,6 @@ dependencies = [
  "argon2",
  "askama",
  "askama_actix",
- "base64 0.21.5",
  "chrono",
  "claims",
  "config",

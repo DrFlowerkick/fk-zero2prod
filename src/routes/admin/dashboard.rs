@@ -2,9 +2,9 @@
 
 use actix_web::{web, Responder};
 use anyhow::Context;
+use askama_actix::Template;
 use sqlx::PgPool;
 use uuid::Uuid;
-use askama_actix::Template;
 
 use crate::authentication::UserId;
 use crate::error::Z2PResult;
@@ -13,7 +13,7 @@ use crate::utils::e500;
 #[derive(Template)]
 #[template(path = "dashboard.html")]
 struct DashboardTemplate {
-    username: String
+    username: String,
 }
 
 pub async fn admin_dashboard(
@@ -23,7 +23,7 @@ pub async fn admin_dashboard(
     let username = get_username(*user_id.into_inner(), &pool)
         .await
         .map_err(e500)?;
-    Ok(DashboardTemplate{username})
+    Ok(DashboardTemplate { username })
 }
 
 #[tracing::instrument(name = "Get username", skip(pool))]

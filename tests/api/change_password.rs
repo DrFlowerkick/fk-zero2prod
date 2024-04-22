@@ -16,7 +16,7 @@ async fn you_must_be_logged_in_to_see_the_change_password_form() {
 }
 
 #[tokio::test]
-async fn you_must_be_logged_in_to_see_the_change_password() {
+async fn you_must_be_logged_in_to_change_password() {
     // Arrange
     let test_app = spawn_app().await;
     let new_password = Uuid::new_v4().to_string();

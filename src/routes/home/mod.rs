@@ -5,8 +5,8 @@ use askama_actix::Template;
 
 #[derive(Template)]
 #[template(path = "home.html")]
-struct HomeTemplate{}
+struct HomeTemplate {}
 
 pub async fn home() -> impl Responder {
-    HomeTemplate{}
+    HomeTemplate {}
 }

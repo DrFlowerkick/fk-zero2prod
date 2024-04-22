@@ -8,6 +8,7 @@ use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::SubscriberEmail;
+use zero2prod::routes::NewsletterFormData;
 use zero2prod::startup::{get_connection_pool, Application};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
@@ -112,7 +113,7 @@ impl TestApp {
         ConfirmationLinks { html, plain_text }
     }
 
-    /// Extract the reciever eamil from the request to the email API.
+    /// Extract the reciever email from the request to the email API.
     pub fn get_reciever_email(&self, email_request: &wiremock::Request) -> SubscriberEmail {
         // Parse the body as JSON, starting from raw bytes
         let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
@@ -123,11 +124,10 @@ impl TestApp {
     }
 
     /// Post newsletters
-    pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
+    pub async fn post_newsletters(&self, form: NewsletterFormData) -> reqwest::Response {
         self.api_client
-            .post(&format!("{}/newsletters", &self.address))
-            .basic_auth(&self.test_user.username, Some(&self.test_user.password))
-            .json(&body)
+            .post(&format!("{}/admin/newsletters", &self.address))
+            .form(&form)
             .send()
             .await
             .expect("Failed to execute request.")
@@ -174,6 +174,20 @@ impl TestApp {
     /// helper to get admin dashboard html
     pub async fn get_admin_dashboard_html(&self) -> String {
         self.get_admin_dashboard().await.text().await.unwrap()
+    }
+
+    /// helper to get publish newsletter
+    pub async fn get_publish_newsletter(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/newsletters", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    /// helper to get publish newsletter html
+    pub async fn get_publish_newsletter_html(&self) -> String {
+        self.get_publish_newsletter().await.text().await.unwrap()
     }
 
     /// helper to get admin change password

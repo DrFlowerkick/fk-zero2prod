@@ -8,6 +8,9 @@
 
 {% block content %}
     <p>Please enter newsletter title and content.</p>
+    {% for message in flash_messages %}
+        <p><i>{{message|e}}</i></p>
+    {% endfor %}
     <form action="/admin/newsletters" method="post">
         <label>Newsletter title
             <input
