@@ -2,5 +2,12 @@
 application:
   host: 127.0.0.1
   base_url: "http://127.0.0.1:8000"
+  # set this on digital via APP_APPLICATION__HMAC_SECRET
+  hmac_secret: "long-and-very-secret-random-key-needed-to-verify-message-integrity"
 database:
   require_ssl: false
+emailclient:
+  # set this on digital via APP_EMAILCLIENT__TOKEN
+  token: "POSTMARK_API_TEST"
+# set this on digital via APP_REDIS_URI
+redis_uri: "redis://127.0.0.1:6379"

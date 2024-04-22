@@ -1,4 +1,4 @@
--- Add migration script here
+-- migrations/20240311202327_create_subscription_tokens_table.sql
 CREATE TABLE subscription_tokens(
     subscription_token TEXT NOT NULL,
     subscriber_id uuid NOT NULL

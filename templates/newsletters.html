@@ -1,0 +1,42 @@
+<!-- /templates/password.html -->
+{% extends "base.html" %}
+
+{% block title %}Send newsletter to subscribers{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+    <p>Please enter newsletter title and content.</p>
+    {% for message in flash_messages %}
+        <p><i>{{message|e}}</i></p>
+    {% endfor %}
+    <form action="/admin/newsletters" method="post">
+        <label>Newsletter title
+            <input
+                type="text"
+                placeholder="Enter title of newsletter"
+                name="title"
+            >
+        </label>
+        <br>
+        <label>Context as text
+            <input
+                type="text"
+                placeholder="Enter content as text"
+                name="text_content"
+            >
+        </label>
+        <br>
+        <label>Content as Html
+            <input
+                type="text"
+                placeholder="Enter content as html"
+                name="html_content"
+            >
+        </label>
+        <br>
+        <button type="submit">Submit newsletter</button>
+    </form>
+    <p><a href="/admin/dashboard">&lt;- Back</a></p>
+{% endblock %}
