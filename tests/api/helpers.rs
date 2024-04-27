@@ -66,6 +66,13 @@ impl TestUser {
         .await
         .expect("Failed to create test user.");
     }
+    pub async fn login(&self, app: &TestApp) -> reqwest::Response {
+        app.post_login(&serde_json::json!({
+            "username": &self.username,
+            "password": &self.password
+        }))
+        .await
+    }
 }
 
 pub struct TestApp {
@@ -124,10 +131,10 @@ impl TestApp {
     }
 
     /// Post newsletters
-    pub async fn post_newsletters(&self, form: NewsletterFormData) -> reqwest::Response {
+    pub async fn post_newsletters(&self, form: &NewsletterFormData) -> reqwest::Response {
         self.api_client
             .post(&format!("{}/admin/newsletters", &self.address))
-            .form(&form)
+            .form(form)
             .send()
             .await
             .expect("Failed to execute request.")

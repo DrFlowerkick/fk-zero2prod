@@ -16,6 +16,7 @@ pub struct NewsletterFormData {
     pub title: String,
     pub html_content: String,
     pub text_content: String,
+    pub idempotency_key: String,
 }
 
 #[tracing::instrument(name = "Publish a newsletter issue", skip(form, pool, email_client))]
@@ -50,7 +51,8 @@ pub async fn publish_newsletter(
                         &form.html_content,
                         &form.text_content,
                     )
-                    .await?;
+                    .await
+                    .map_err(e500)?;
             }
             Err(err) => {
                 tracing::warn!(

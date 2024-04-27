@@ -6,6 +6,34 @@ use wiremock::{Mock, ResponseTemplate};
 use zero2prod::domain::SubscriberEmail;
 use zero2prod::routes::NewsletterFormData;
 
+/// have some helpers for Newsletters
+fn valid_newsletter_form_data() -> NewsletterFormData {
+    NewsletterFormData {
+        title: "Newsletter title".to_string(),
+        html_content: "<p>Newsletter body as HTML</p>".to_string(),
+        text_content: "Newsletter body as plain text".to_string(),
+        idempotency_key: uuid::Uuid::new_v4().to_string(),
+    }
+}
+
+fn invalid_title_newsletter_form_data() -> NewsletterFormData {
+    NewsletterFormData {
+        title: "".to_string(),
+        html_content: "<p>Newsletter body as HTML</p>".to_string(),
+        text_content: "Newsletter body as plain text".to_string(),
+        idempotency_key: uuid::Uuid::new_v4().to_string(),
+    }
+}
+
+fn invalid_content_newsletter_form_data() -> NewsletterFormData {
+    NewsletterFormData {
+        title: "Newsletter title".to_string(),
+        html_content: "".to_string(),
+        text_content: "".to_string(),
+        idempotency_key: uuid::Uuid::new_v4().to_string(),
+    }
+}
+
 /// Use the public API of the application under test to create an unconfirmed subscriber
 async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -85,22 +113,13 @@ async fn you_must_be_logged_in_to_see_the_publish_newsletter_form() {
 async fn you_must_set_title_for_newsletter() {
     // Arrange
     let test_app = spawn_app().await;
-    let invalid_form = NewsletterFormData {
-        title: "".to_string(),
-        html_content: "<p>Newsletter body as HTML</p>".to_string(),
-        text_content: "Newsletter body as plain text".to_string(),
-    };
+    let invalid_form = invalid_title_newsletter_form_data();
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - try send invalid newsletter form
-    let response = test_app.post_newsletters(invalid_form).await;
+    let response = test_app.post_newsletters(&invalid_form).await;
 
     // Assert
     assert_is_redirect_to(&response, "/admin/newsletters");
@@ -114,22 +133,13 @@ async fn you_must_set_title_for_newsletter() {
 async fn you_must_set_content_for_newsletter() {
     // Arrange
     let test_app = spawn_app().await;
-    let invalid_form = NewsletterFormData {
-        title: "Newsletter title".to_string(),
-        html_content: "".to_string(),
-        text_content: "".to_string(),
-    };
+    let invalid_form = invalid_content_newsletter_form_data();
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - try send invalid newsletter form
-    let response = test_app.post_newsletters(invalid_form).await;
+    let response = test_app.post_newsletters(&invalid_form).await;
 
     // Assert
     assert_is_redirect_to(&response, "/admin/newsletters");
@@ -153,20 +163,11 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
         .await;
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - try send newsletter
     let response = test_app
-        .post_newsletters(NewsletterFormData {
-            title: "Newsletter title".to_string(),
-            html_content: "<p>Newsletter body as HTML</p>".to_string(),
-            text_content: "Newsletter body as plain text".to_string(),
-        })
+        .post_newsletters(&valid_newsletter_form_data())
         .await;
 
     // Assert
@@ -195,20 +196,11 @@ async fn return_warning_if_invalid_subscriber() {
         .await;
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - try send newsletter
     let response = test_app
-        .post_newsletters(NewsletterFormData {
-            title: "Newsletter title".to_string(),
-            html_content: "<p>Newsletter body as HTML</p>".to_string(),
-            text_content: "Newsletter body as plain text".to_string(),
-        })
+        .post_newsletters(&valid_newsletter_form_data())
         .await;
 
     // Assert
@@ -236,20 +228,11 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
         .await;
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 -
     let response = test_app
-        .post_newsletters(NewsletterFormData {
-            title: "Newsletter title".to_string(),
-            html_content: "<p>Newsletter body as HTML</p>".to_string(),
-            text_content: "Newsletter body as plain text".to_string(),
-        })
+        .post_newsletters(&valid_newsletter_form_data())
         .await;
 
     // Assert
@@ -260,4 +243,43 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     assert!(html_page.contains("<p><i>Newsletter has been sent.</i></p>"));
 
     // Mock verifies on Drop that we have sent one newsletter email
+}
+
+
+#[tokio::test]
+async fn newsletter_creation_is_idempotent() {
+    // Arrange
+    let test_app = spawn_app().await;
+    create_confirmed_subscriber(&test_app).await;
+    test_app.test_user.login(&test_app).await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act - Part 1 - Submit newsletter form
+    let newsletter_request_body = valid_newsletter_form_data();
+    let response = test_app.post_newsletters(&newsletter_request_body).await;
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    // Act - Part 2 - Follow the redirect
+    let html_page = test_app.get_publish_newsletter_html().await;
+    assert!(
+        html_page.contains("<p><i>Newsletter has been sent.</i></p>")
+    );
+
+    // Act - Part 3 - Submit newsletter form **again**
+    let response = test_app.post_newsletters(&newsletter_request_body).await;
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    // Act - Part 4 - Follow the redirect
+    let html_page = test_app.get_publish_newsletter_html().await;
+    assert!(
+        html_page.contains("<p><i>Newsletter has been sent.</i></p>")
+    );
+
+    // Mock verifies on Drop that we have sent the newsletter email **once**
 }
