@@ -10,7 +10,7 @@ use crate::authentication::UserId;
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
 use crate::error::{Error, Z2PResult};
-use crate::idempotency::{get_saved_response, save_response, IdempotencyKey};
+use crate::idempotency::{save_response, try_processing, IdempotencyKey, NextAction};
 use crate::routes::SubscriptionsStatus;
 use crate::utils::{e400, e500, see_other};
 
@@ -47,14 +47,16 @@ pub async fn publish_newsletter(
     } = form.0;
 
     let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(e400)?;
-    // return early if we have a saved response in the database
-    if let Some(saved_response) = get_saved_response(&pool, &idempotency_key, *user_id)
+    let transaction = match try_processing(&pool, &idempotency_key, *user_id)
         .await
         .map_err(e500)?
     {
-        FlashMessage::info("Newsletter has been sent.").send();
-        return Ok(saved_response);
-    }
+        NextAction::StartProcessing(t) => t,
+        NextAction::ReturnSavedResponse(saved_response) => {
+            FlashMessage::info("Newsletter has been sent.").send();
+            return Ok(saved_response);
+        }
+    };
 
     // get subscribers
     let subscribers = get_confirmed_subscribers(&pool).await.map_err(e500)?;
@@ -88,7 +90,7 @@ pub async fn publish_newsletter(
     }
     FlashMessage::info("Newsletter has been sent.").send();
     let response = see_other("/admin/newsletters");
-    let response = save_response(&pool, &idempotency_key, *user_id, response)
+    let response = save_response(transaction, &idempotency_key, *user_id, response)
         .await
         .map_err(e500)?;
     Ok(response)
