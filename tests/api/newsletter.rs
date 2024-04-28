@@ -245,7 +245,6 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     // Mock verifies on Drop that we have sent one newsletter email
 }
 
-
 #[tokio::test]
 async fn newsletter_creation_is_idempotent() {
     // Arrange
@@ -267,9 +266,7 @@ async fn newsletter_creation_is_idempotent() {
 
     // Act - Part 2 - Follow the redirect
     let html_page = test_app.get_publish_newsletter_html().await;
-    assert!(
-        html_page.contains("<p><i>Newsletter has been sent.</i></p>")
-    );
+    assert!(html_page.contains("<p><i>Newsletter has been sent.</i></p>"));
 
     // Act - Part 3 - Submit newsletter form **again**
     let response = test_app.post_newsletters(&newsletter_request_body).await;
@@ -277,9 +274,7 @@ async fn newsletter_creation_is_idempotent() {
 
     // Act - Part 4 - Follow the redirect
     let html_page = test_app.get_publish_newsletter_html().await;
-    assert!(
-        html_page.contains("<p><i>Newsletter has been sent.</i></p>")
-    );
+    assert!(html_page.contains("<p><i>Newsletter has been sent.</i></p>"));
 
     // Mock verifies on Drop that we have sent the newsletter email **once**
 }
