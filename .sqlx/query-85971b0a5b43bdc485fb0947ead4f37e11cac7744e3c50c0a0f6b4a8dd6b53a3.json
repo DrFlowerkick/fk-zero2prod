@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE idempotency\n                SET\n                    response_status_code = $3,\n                    response_headers = $4,\n                    response_body = $5\n                WHERE\n                    user_id = $1 AND\n                    idempotency_key = $2\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int2",
+        {
+          "Custom": {
+            "name": "_header_pair",
+            "kind": {
+              "Array": {
+                "Custom": {
+                  "name": "header_pair",
+                  "kind": {
+                    "Composite": [
+                      [
+                        "name",
+                        "Text"
+                      ],
+                      [
+                        "value",
+                        "Bytea"
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "85971b0a5b43bdc485fb0947ead4f37e11cac7744e3c50c0a0f6b4a8dd6b53a3"
+}

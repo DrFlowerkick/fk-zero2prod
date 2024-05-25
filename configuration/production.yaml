@@ -1,8 +1,9 @@
 #! #! configuration/production.yaml
 application:
   host: 0.0.0.0
+  base_url: "https://zero2prod.drflowerkick.duckdns.org:443"
 database:
-  require_ssl: true
+  port: 5435
+  require_ssl: false
 emailclient:
   base_url: "https://api.postmarkapp.com"
-  sender_email: "noreply@ilkablumentritt.de"
