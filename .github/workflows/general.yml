@@ -95,7 +95,7 @@ jobs:
           sudo apt-get update && sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
       - name: Linting
-        run: DATABASE_URL=${{ env.DATABASE_URL }} cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
   coverage:
     name: Code coverage
@@ -134,4 +134,4 @@ jobs:
           sudo apt-get update && sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
       - name: Generate code coverage
-        run: DATABASE_URL=${{ env.DATABASE_URL }} cargo tarpaulin --verbose --workspace
+        run: cargo tarpaulin --verbose --workspace
