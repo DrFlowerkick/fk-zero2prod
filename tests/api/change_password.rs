@@ -42,12 +42,7 @@ async fn new_password_fields_must_match() {
     let another_new_password = Uuid::new_v4().to_string();
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - Try to change password
     let response = test_app
@@ -74,12 +69,7 @@ async fn current_password_must_be_valid() {
     let wrong_password = Uuid::new_v4().to_string();
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - Try to change password
     let response = test_app
@@ -109,12 +99,7 @@ async fn new_password_must_be_valid() {
     ];
 
     // Act - Part 1 - Login
-    test_app
-        .post_login(&serde_json::json!({
-            "username": &test_app.test_user.username,
-            "password": &test_app.test_user.password
-        }))
-        .await;
+    test_app.test_user.login(&test_app).await;
 
     // Act - Part 2 - Try to change password
     for bad_password in bad_new_passwords {
@@ -144,11 +129,7 @@ async fn logout_clears_session_state() {
     let test_app = spawn_app().await;
 
     // Act - Part 1 - Login
-    let login_body = serde_json::json!({
-        "username": &test_app.test_user.username,
-        "password": &test_app.test_user.password
-    });
-    let response = test_app.post_login(&login_body).await;
+    let response = test_app.test_user.login(&test_app).await;
     assert_is_redirect_to(&response, "/admin/dashboard");
 
     // Act - Part 2 - Follow the redirect
@@ -175,11 +156,7 @@ async fn changing_password_works() {
     let new_password = Uuid::new_v4().to_string();
 
     // Act - Part 1 - Login
-    let login_body = serde_json::json!({
-        "username": &test_app.test_user.username,
-        "password": &test_app.test_user.password
-    });
-    let response = test_app.post_login(&login_body).await;
+    let response = test_app.test_user.login(&test_app).await;
     assert_is_redirect_to(&response, "/admin/dashboard");
 
     // Act - Part 2 - Change password

@@ -1,16 +1,10 @@
 name: Rust
 
 on:
-  # NB: this differs from the book's project!
-  # These settings allow us to run this specific CI pipeline for PRs against
-  # this specific branch (a.k.a. book chapter).
   push:
     branches:
-      - root-chapter-10-part2
+      - main
   pull_request:
-    types: [ opened, synchronize, reopened ]
-    branches:
-      - root-chapter-10-part2
 
 env:
   CARGO_TERM_COLOR: always
@@ -27,15 +21,15 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: postgres
+          POSTGRES_DB: newsletter
         ports:
-          - 5432:5432
+          - 5434:5432
       redis:
         image: redis:7
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -61,7 +55,7 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -79,9 +73,9 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: postgres
         ports:
-          - 5432:5432
+          - 5434:5432
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -113,14 +107,14 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: postgres
         ports:
-          - 5432:5432
+          - 5434:5434
       redis:
         image: redis:7
         ports:
           - 6379:6379
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install libpq
         run: sudo apt-get update && sudo apt-get install postgresql-client -y

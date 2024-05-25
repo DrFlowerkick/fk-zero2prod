@@ -2,12 +2,11 @@
 application:
   port: 8000
 database:
-  host: "localhost"
-  port: 5433
+  host: "192.168.178.3"
   username: "postgres"
   password: "password"
   database_name: "newsletter"
 emailclient:
-  base_url: "http://127.0.0.1"
   sender_email: "noreply@ilkablumentritt.de"
   timeout_milliseconds: 10000
+redis_uri: "redis://192.168.178.3:6379"

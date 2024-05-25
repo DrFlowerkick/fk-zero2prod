@@ -20,8 +20,8 @@ DB_USER="${POSTGRES_USER:=postgres}"
 DB_PASSWORD="${POSTGRES_PASSWORD:=password}"
 # Check if a custom database name has been set, otherwise default to 'newsletter'
 DB_NAME="${POSTGRES_DB:=newsletter}"
-# Check if a custom port has been set, otherwise default to '5433'
-DB_PORT="${POSTGRES_PORT:=5433}"
+# Check if a custom port has been set, otherwise default to '5434'
+DB_PORT="${POSTGRES_PORT:=5434}"
 # Check if a custom host has been set, otherwise default to 'localhost'
 DB_HOST="${POSTGRES_HOST:=127.0.0.1}"
 
