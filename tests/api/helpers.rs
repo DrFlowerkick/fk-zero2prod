@@ -11,6 +11,8 @@ use zero2prod::domain::SubscriberEmail;
 use zero2prod::routes::NewsletterFormData;
 use zero2prod::startup::{get_connection_pool, Application};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
+use zero2prod::email_client::EmailClient;
+use zero2prod::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
@@ -82,6 +84,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub test_user: TestUser,
     pub api_client: reqwest::Client,
+    pub email_client: EmailClient,
 }
 
 impl TestApp {
@@ -232,6 +235,19 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
+
+    /// helper to send all newsletter emails from task queue
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue = 
+                try_execute_task(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
+            {
+                break;   
+            }
+        }
+    }
 }
 
 // Little helper function to assert redirected location
@@ -284,6 +300,7 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         test_user: TestUser::generate(),
         api_client: client,
+        email_client: configuration.emailclient.client(),
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
