@@ -26,17 +26,8 @@ pub struct Application {
 impl Application {
     pub async fn build(configuration: Settings) -> Z2PResult<Self> {
         let connection_pool = get_connection_pool(&configuration.database);
-        let sender_email = configuration
-            .emailclient
-            .sender()
-            .expect("Invalid sender email address.");
-        let timeout = configuration.emailclient.timeout();
-        let email_client = EmailClient::new(
-            configuration.emailclient.base_url,
-            sender_email,
-            configuration.emailclient.token,
-            timeout,
-        );
+
+        let email_client = configuration.emailclient.client();
         let address = format!(
             "{}:{}",
             configuration.application.host, configuration.application.port
