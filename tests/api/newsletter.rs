@@ -225,8 +225,8 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
 
     // Act - Part 3 - Follow the redirect
     let html_page = test_app.get_publish_newsletter_html().await;
-    assert!(html_page
-        .contains("<p><i>The newsletter issue has been accepted - \
+    assert!(html_page.contains(
+        "<p><i>The newsletter issue has been accepted - \
         emails will go out shortly.</i></p>"
     ));
     test_app.dispatch_all_pending_emails().await;

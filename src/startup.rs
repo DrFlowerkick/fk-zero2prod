@@ -26,7 +26,7 @@ pub struct Application {
 impl Application {
     pub async fn build(configuration: Settings) -> Z2PResult<Self> {
         let connection_pool = get_connection_pool(&configuration.database);
-        
+
         let email_client = configuration.emailclient.client();
         let address = format!(
             "{}:{}",

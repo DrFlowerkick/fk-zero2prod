@@ -8,11 +8,11 @@ use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::SubscriberEmail;
+use zero2prod::email_client::EmailClient;
+use zero2prod::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
 use zero2prod::routes::NewsletterFormData;
 use zero2prod::startup::{get_connection_pool, Application};
 use zero2prod::telemetry::{get_subscriber, init_subscriber};
-use zero2prod::email_client::EmailClient;
-use zero2prod::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
@@ -239,12 +239,12 @@ impl TestApp {
     /// helper to send all newsletter emails from task queue
     pub async fn dispatch_all_pending_emails(&self) {
         loop {
-            if let ExecutionOutcome::EmptyQueue = 
+            if let ExecutionOutcome::EmptyQueue =
                 try_execute_task(&self.db_pool, &self.email_client)
                     .await
                     .unwrap()
             {
-                break;   
+                break;
             }
         }
     }

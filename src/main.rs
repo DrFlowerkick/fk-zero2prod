@@ -1,12 +1,12 @@
 //! main.rs
 
-use zero2prod::configuration::get_configuration;
-use zero2prod::error::Z2PResult;
-use zero2prod::startup::Application;
-use zero2prod::telemetry::{get_subscriber, init_subscriber};
-use zero2prod::issue_delivery_worker::run_worker_until_stopped;
 use std::fmt::{Debug, Display};
 use tokio::task::JoinError;
+use zero2prod::configuration::get_configuration;
+use zero2prod::error::Z2PResult;
+use zero2prod::issue_delivery_worker::run_worker_until_stopped;
+use zero2prod::startup::Application;
+use zero2prod::telemetry::{get_subscriber, init_subscriber};
 
 #[tokio::main]
 async fn main() -> Z2PResult<()> {
@@ -27,14 +27,11 @@ async fn main() -> Z2PResult<()> {
     Ok(())
 }
 
-fn report_exit(
-    task_name: &str,
-    outcome: Result<Result<(), impl Debug + Display>, JoinError>
-) {
+fn report_exit(task_name: &str, outcome: Result<Result<(), impl Debug + Display>, JoinError>) {
     match outcome {
         Ok(Ok(())) => {
             tracing::info!("{} has exited", task_name)
-        },
+        }
         Ok(Err(e)) => {
             tracing::error!(
                 error.cause_chain = ?e,

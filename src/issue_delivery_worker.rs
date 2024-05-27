@@ -1,33 +1,31 @@
 //! src/issue_delivery_worker.rs
 
-use crate::{email_client::EmailClient, domain::SubscriberEmail, configuration::Settings, startup::get_connection_pool};
-use sqlx::{Executor, PgPool, Postgres, Transaction, Row};
+use crate::{
+    configuration::Settings, domain::SubscriberEmail, email_client::EmailClient,
+    startup::get_connection_pool,
+};
+use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
+use std::time::Duration;
 use tracing::{field::display, Span};
 use uuid::Uuid;
-use std::time::Duration;
 
-pub async fn run_worker_until_stopped(
-    configuration: Settings,
-) -> Result<(), anyhow::Error> {
+pub async fn run_worker_until_stopped(configuration: Settings) -> Result<(), anyhow::Error> {
     let connection_pool = get_connection_pool(&configuration.database);
 
     let email_client = configuration.emailclient.client();
     worker_loop(connection_pool, email_client).await
 }
 
-async fn worker_loop(
-    pool: PgPool,
-    email_client: EmailClient,
-) -> Result<(), anyhow::Error> {
+async fn worker_loop(pool: PgPool, email_client: EmailClient) -> Result<(), anyhow::Error> {
     loop {
         match try_execute_task(&pool, &email_client).await {
             Ok(ExecutionOutcome::EmptyQueue) => {
                 tokio::time::sleep(Duration::from_secs(10)).await;
-            },
+            }
             Err(_) => {
                 tokio::time::sleep(Duration::from_secs(1)).await;
-            },
-            Ok(ExecutionOutcome::TaskCompleted) => {},
+            }
+            Ok(ExecutionOutcome::TaskCompleted) => {}
         }
     }
 }
@@ -46,13 +44,13 @@ pub enum ExecutionOutcome {
 )]
 pub async fn try_execute_task(
     pool: &PgPool,
-    email_client: &EmailClient
+    email_client: &EmailClient,
 ) -> Result<ExecutionOutcome, anyhow::Error> {
     let task = dequeue_task(pool).await?;
     if task.is_none() {
         return Ok(ExecutionOutcome::EmptyQueue);
     }
-let (transaction, issue_id, email) = task.unwrap();
+    let (transaction, issue_id, email) = task.unwrap();
     Span::current()
         .record("newsletter_issue_id", &display(issue_id))
         .record("subscriber_email", &display(&email));
@@ -74,7 +72,7 @@ let (transaction, issue_id, email) = task.unwrap();
                     "Failed to deliver issue to a confirmed subscriber. Skipping.",
                 );
             }
-        },
+        }
         Err(e) => {
             tracing::error!(
                 error.cause_chain = ?e,
@@ -82,7 +80,7 @@ let (transaction, issue_id, email) = task.unwrap();
                 "Skipping a confirmed subscriber. \
                 Thier stored contact details are invalid.",
             );
-        },
+        }
     }
     delete_task(transaction, issue_id, &email).await?;
     Ok(ExecutionOutcome::TaskCompleted)
@@ -144,10 +142,7 @@ struct NewsletterIssue {
 }
 
 #[tracing::instrument(skip_all)]
-async fn get_issue(
-    pool: &PgPool,
-    issue_id: Uuid
-) -> Result<NewsletterIssue, anyhow::Error> {
+async fn get_issue(pool: &PgPool, issue_id: Uuid) -> Result<NewsletterIssue, anyhow::Error> {
     let issue = sqlx::query_as!(
         NewsletterIssue,
         r#"
