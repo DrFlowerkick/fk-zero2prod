@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SQLX_VERSION: 0.7.3
+  SQLX_VERSION: 0.7.4
   SQLX_FEATURES: "rustls,postgres"
   # required for sqlx code compilation
   DATABASE_URL: "postgres://postgres:password@127.0.0.1:5434/newsletter"
