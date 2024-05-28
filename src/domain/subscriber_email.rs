@@ -1,14 +1,14 @@
 //! src/domain/subscriber_email.rs
 
 use crate::domain::ValidationError;
-use validator::validate_email;
+use validator::ValidateEmail;
 
 #[derive(Debug)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
     pub fn parse(s: String) -> Result<SubscriberEmail, ValidationError> {
-        if validate_email(&s) {
+        if s.validate_email() {
             Ok(Self(s))
         } else {
             Err(ValidationError::InvalidEmail(s))
