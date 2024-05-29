@@ -70,3 +70,5 @@ tokio = { version = "1", features = ["macros", "rt"] }
 wiremock = "0.6"
 linkify = "0.10"
 serde_urlencoded = "0.7.1"
+async-once-cell = "0.5"
+lazy_static = "1.4"

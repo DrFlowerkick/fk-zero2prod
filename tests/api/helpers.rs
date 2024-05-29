@@ -3,9 +3,11 @@
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use once_cell::sync::Lazy;
-use sqlx::{Connection, Executor, PgConnection, PgPool};
+use sqlx::{Connection, Executor, PgConnection, PgPool, Row, Error};
 use uuid::Uuid;
 use wiremock::MockServer;
+use async_once_cell::OnceCell;
+use lazy_static::lazy_static;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::SubscriberEmail;
 use zero2prod::email_client::EmailClient;
@@ -29,6 +31,10 @@ static TRACING: Lazy<()> = Lazy::new(|| {
         init_subscriber(subscriber);
     }
 });
+
+lazy_static! {
+    static ref CLEANUP_DB: OnceCell<Result<(), Error>> = OnceCell::new();   
+}
 
 pub struct TestUser {
     pub user_id: Uuid,
@@ -85,6 +91,7 @@ pub struct TestApp {
     pub test_user: TestUser,
     pub api_client: reqwest::Client,
     pub email_client: EmailClient,
+    pub db_name: String,
 }
 
 impl TestApp {
@@ -262,6 +269,9 @@ pub async fn spawn_app() -> TestApp {
     // The first time `initialize` is invoked the code in `TRACING` is executed.
     // All other invocations will instead skip execution.
     Lazy::force(&TRACING);
+    if let Err(r) = CLEANUP_DB.get_or_init(cleanup_db()).await {
+        panic!("clean up of test databases failed:\n{}", r);
+    }
 
     // Launch a mock server to stand in for Postmark's API
     let email_server = MockServer::start().await;
@@ -301,6 +311,7 @@ pub async fn spawn_app() -> TestApp {
         test_user: TestUser::generate(),
         api_client: client,
         email_client: configuration.emailclient.client(),
+        db_name: configuration.database.database_name,
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
@@ -311,6 +322,7 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
     let mut connection = PgConnection::connect_with(&config.without_db())
         .await
         .expect("Failed to connect to Postgres");
+
     connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
         .await
@@ -326,6 +338,29 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to migrate the database.");
 
     connection_pool
+}
+
+async fn cleanup_db() -> Result<(), Error> {
+    let database = get_configuration().expect("Failed to read configuration.").database;
+    // Connect to postgres without db
+    let mut connection = PgConnection::connect_with(&database.without_db())
+        .await?;
+    
+    let rows = connection
+        .fetch_all("SELECT datname FROM pg_database WHERE datistemplate = false")
+        .await?;
+
+    for row in rows {
+        let database_name: String = row.try_get("datname")?;
+        if Uuid::parse_str(&database_name).is_ok() {
+            // database is Uuid -> test database -> delete it
+            let query: &str = &format!(r#"DROP DATABASE IF EXISTS "{}" ( FORCE ) "#, database_name);
+            connection
+                .execute(query)
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 /// Confirmation links embedded in the rquest to the email API.
