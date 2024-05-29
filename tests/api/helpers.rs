@@ -1,13 +1,14 @@
 //! tests/api/helpers.rs
 
+use anyhow::Error;
 use argon2::password_hash::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
-use once_cell::sync::Lazy;
-use sqlx::{Connection, Executor, PgConnection, PgPool, Row, Error};
-use uuid::Uuid;
-use wiremock::MockServer;
 use async_once_cell::OnceCell;
 use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
+use sqlx::{Connection, Executor, PgConnection, PgPool, Row};
+use uuid::Uuid;
+use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
 use zero2prod::domain::SubscriberEmail;
 use zero2prod::email_client::EmailClient;
@@ -33,7 +34,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 });
 
 lazy_static! {
-    static ref CLEANUP_DB: OnceCell<Result<(), Error>> = OnceCell::new();   
+    static ref CLEANUP_DB: OnceCell<Result<(), Error>> = OnceCell::new();
 }
 
 pub struct TestUser {
@@ -341,11 +342,10 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
 }
 
 async fn cleanup_db() -> Result<(), Error> {
-    let database = get_configuration().expect("Failed to read configuration.").database;
+    let database = get_configuration()?.database;
     // Connect to postgres without db
-    let mut connection = PgConnection::connect_with(&database.without_db())
-        .await?;
-    
+    let mut connection = PgConnection::connect_with(&database.without_db()).await?;
+
     let rows = connection
         .fetch_all("SELECT datname FROM pg_database WHERE datistemplate = false")
         .await?;
@@ -355,9 +355,7 @@ async fn cleanup_db() -> Result<(), Error> {
         if Uuid::parse_str(&database_name).is_ok() {
             // database is Uuid -> test database -> delete it
             let query: &str = &format!(r#"DROP DATABASE IF EXISTS "{}" ( FORCE ) "#, database_name);
-            connection
-                .execute(query)
-                .await?;
+            connection.execute(query).await?;
         }
     }
     Ok(())
