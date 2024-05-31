@@ -71,6 +71,9 @@ pub async fn try_execute_task(
                     error.message = %e,
                     "Failed to deliver issue to a confirmed subscriber. Skipping.",
                 );
+                update_issue_delivery_failure(pool, issue_id).await?;
+            } else {
+                update_issue_delivery_success(pool, issue_id).await?;
             }
         }
         Err(e) => {
@@ -80,6 +83,7 @@ pub async fn try_execute_task(
                 "Skipping a confirmed subscriber. \
                 Thier stored contact details are invalid.",
             );
+            update_issue_delivery_failure(pool, issue_id).await?;
         }
     }
     delete_task(transaction, issue_id, &email).await?;
@@ -156,4 +160,74 @@ async fn get_issue(pool: &PgPool, issue_id: Uuid) -> Result<NewsletterIssue, any
     .fetch_one(pool)
     .await?;
     Ok(issue)
+}
+
+#[tracing::instrument(skip_all)]
+async fn update_issue_delivery_success(pool: &PgPool, issue_id: Uuid) -> Result<(), anyhow::Error> {
+    let mut transaction: Transaction<'_, Postgres> = pool.begin().await?;
+    let query = sqlx::query!(
+        r#"
+        SELECT num_delivered_newsletters
+        FROM newsletter_issues
+        WHERE
+            newsletter_issue_id = $1
+        FOR UPDATE;
+        "#,
+        issue_id
+    );
+    let row = transaction.fetch_one(query).await?;
+
+    let num_delivered_newsletters: i32 = row.try_get("num_delivered_newsletters")?;
+
+    let query = sqlx::query!(
+        r#"
+        UPDATE newsletter_issues
+        SET
+            num_delivered_newsletters = $2
+        WHERE
+            newsletter_issue_id = $1
+        "#,
+        issue_id,
+        num_delivered_newsletters + 1
+    );
+    transaction.execute(query).await?;
+
+    transaction.commit().await?;
+
+    Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+async fn update_issue_delivery_failure(pool: &PgPool, issue_id: Uuid) -> Result<(), anyhow::Error> {
+    let mut transaction: Transaction<'_, Postgres> = pool.begin().await?;
+    let query = sqlx::query!(
+        r#"
+        SELECT num_failed_deliveries
+        FROM newsletter_issues
+        WHERE
+            newsletter_issue_id = $1
+        FOR UPDATE;
+        "#,
+        issue_id
+    );
+    let row = transaction.fetch_one(query).await?;
+
+    let num_failed_deliveries: i32 = row.try_get("num_failed_deliveries")?;
+
+    let query = sqlx::query!(
+        r#"
+        UPDATE newsletter_issues
+        SET
+        num_failed_deliveries = $2
+        WHERE
+            newsletter_issue_id = $1
+        "#,
+        issue_id,
+        num_failed_deliveries + 1
+    );
+    transaction.execute(query).await?;
+
+    transaction.commit().await?;
+
+    Ok(())
 }

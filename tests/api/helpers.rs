@@ -84,6 +84,12 @@ impl TestUser {
     }
 }
 
+pub struct NewsletterDeliveryOverview {
+    pub num_current_subscribers: Option<i32>,
+    pub num_delivered_newsletters: Option<i32>,
+    pub num_failed_deliveries: Option<i32>,
+}
+
 pub struct TestApp {
     pub address: String,
     pub port: u16,
@@ -255,6 +261,20 @@ impl TestApp {
                 break;
             }
         }
+    }
+
+    /// helper to read newsletter delivery overview
+    pub async fn get_newsletter_delivery_overview(&self) -> NewsletterDeliveryOverview {
+        sqlx::query_as!(
+            NewsletterDeliveryOverview,
+            r#"
+            SELECT num_current_subscribers, num_delivered_newsletters, num_failed_deliveries
+            FROM newsletter_issues
+            "#
+        )
+        .fetch_one(&self.db_pool)
+        .await
+        .unwrap()
     }
 }
 

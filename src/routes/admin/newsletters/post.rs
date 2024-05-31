@@ -66,9 +66,13 @@ pub async fn publish_newsletter(
         .await
         .context("Failed to store newsletter issue details")
         .map_err(e500)?;
-    enqueue_delivery_tasks(&mut transaction, issue_id)
+    let num_current_subscribers = enqueue_delivery_tasks(&mut transaction, issue_id)
         .await
         .context("Failed to enqueue delivera tasks")
+        .map_err(e500)?;
+    initialize_newsletter_delivery_data(&mut transaction, issue_id, num_current_subscribers)
+        .await
+        .context("Failed to initialize newsletter delivery overview")
         .map_err(e500)?;
 
     let response = see_other("/admin/newsletters");
@@ -115,7 +119,7 @@ async fn insert_newsletter_issue(
 async fn enqueue_delivery_tasks(
     transaction: &mut Transaction<'_, Postgres>,
     newsletter_issue_id: Uuid,
-) -> Result<(), sqlx::Error> {
+) -> Result<i32, sqlx::Error> {
     let query = sqlx::query!(
         r#"
         INSERT INTO issue_delivery_queue (
@@ -128,6 +132,29 @@ async fn enqueue_delivery_tasks(
         "#,
         newsletter_issue_id,
         SubscriptionsStatus::Confirmed as SubscriptionsStatus,
+    );
+    let num_current_subscribers = transaction.execute(query).await?.rows_affected() as i32;
+    Ok(num_current_subscribers)
+}
+
+#[tracing::instrument(skip_all)]
+async fn initialize_newsletter_delivery_data(
+    transaction: &mut Transaction<'_, Postgres>,
+    newsletter_issue_id: Uuid,
+    num_current_subscribers: i32,
+) -> Result<(), sqlx::Error> {
+    let query = sqlx::query!(
+        r#"
+        UPDATE newsletter_issues
+        SET
+            num_current_subscribers = $2,
+            num_delivered_newsletters = 0,
+            num_failed_deliveries = 0
+        WHERE
+            newsletter_issue_id = $1
+        "#,
+        newsletter_issue_id,
+        num_current_subscribers,
     );
     transaction.execute(query).await?;
     Ok(())

@@ -1,6 +1,6 @@
 # Builder stage
 # We use the latest Rust stable release as base image
-FROM lukemathwalker/cargo-chef:latest-rust-1.76.0 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.78.0 AS chef
 # Let's switch our working directory to `app` (equivalent to `cd app`)
 # The `app` folder will be created for us by Docker in case it does not
 # exist already.

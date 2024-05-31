@@ -104,7 +104,7 @@ async fn create_confirmed_subscriber(app: &TestApp) -> SubscriberEmail {
     email
 }
 
-async fn _make_valid_subscriber_email_invalid(app: &TestApp, email: SubscriberEmail) {
+async fn make_valid_subscriber_email_invalid(app: &TestApp, email: SubscriberEmail) {
     // get user_id from email
     let subscriber_id = sqlx::query!(
         "SELECT id FROM subscriptions \
@@ -233,46 +233,13 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     // Mock verifies on Drop that we haven't sent the newsletter email
 }
 
-/* ToDo: rewrite this test!
 #[tokio::test]
-async fn return_warning_if_invalid_subscriber() {
-    // Arrange
-    let test_app = spawn_app().await;
-    let email = create_confirmed_subscriber(&test_app).await;
-    make_valid_subscriber_email_invalid(&test_app, email).await;
-
-    Mock::given(any())
-        .respond_with(ResponseTemplate::new(200))
-        // We assert that no request is fired at Postmark!
-        .expect(0)
-        .mount(&test_app.email_server)
-        .await;
-
-    // Act - Part 1 - Login
-    test_app.test_user.login(&test_app).await;
-
-    // Act - Part 2 - try send newsletter
-    let response = test_app
-        .post_newsletters(&valid_newsletter_form_data())
-        .await;
-
-    // Assert
-    assert_is_redirect_to(&response, "/admin/newsletters");
-
-    // Act - Part 3 - Follow the redirect
-    let html_page = test_app.get_publish_newsletter_html().await;
-    assert!(html_page
-        .contains("<p><i>You have at least one invalid subscriber. Check your logs.</i></p>"));
-
-    // Mock verifies on Drop that we haven't sent the newsletter email
-}
- */
-
-#[tokio::test]
-async fn newsletters_are_delivered_to_confirmed_subscribers() {
+async fn newsletters_are_delivered_to_confirmed_subscribers_only() {
     // Arrange
     let test_app = spawn_app().await;
     create_confirmed_subscriber(&test_app).await;
+    let invalid_email = create_confirmed_subscriber(&test_app).await;
+    make_valid_subscriber_email_invalid(&test_app, invalid_email).await;
 
     when_sending_an_email()
         .respond_with(ResponseTemplate::new(200))
@@ -298,6 +265,13 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
         emails will go out shortly.</i></p>"
     ));
     test_app.dispatch_all_pending_emails().await;
+
+    // Assert for two subscribers, one being invalid
+    let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
+    assert_eq!(newsletter_delivery_overview.num_current_subscribers, Some(2));
+    assert_eq!(newsletter_delivery_overview.num_delivered_newsletters, Some(1));
+    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(1));
+
     // Mock verifies on Drop that we have sent one newsletter email
 }
 
