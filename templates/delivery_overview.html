@@ -1,0 +1,14 @@
+<!-- /templates/delivey_overview.html -->
+{% extends "base.html" %}
+
+{% block title %}Delivery Overview{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+    <p>Delivery overview of newsletters!</p>
+    {% for newsletter in newsletters %}
+        <p><i>{{newsletter.title|e}} published at {{newsletter.published_at|e}}</i></p>
+    {% endfor %}
+{% endblock %}

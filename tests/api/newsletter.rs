@@ -14,7 +14,7 @@ use zero2prod::domain::SubscriberEmail;
 use zero2prod::routes::NewsletterFormData;
 
 /// have some helpers for Newsletters
-fn valid_newsletter_form_data() -> NewsletterFormData {
+pub fn valid_newsletter_form_data() -> NewsletterFormData {
     NewsletterFormData {
         title: "Newsletter title".to_string(),
         html_content: "<p>Newsletter body as HTML</p>".to_string(),
@@ -51,7 +51,7 @@ fn invalid_html_content_newsletter_form_data() -> NewsletterFormData {
 }
 
 // Short-hand for a common mocking setup
-fn when_sending_an_email() -> MockBuilder {
+pub fn when_sending_an_email() -> MockBuilder {
     Mock::given(path("/email")).and(method("POST"))
 }
 
@@ -92,7 +92,7 @@ async fn create_unconfirmed_subscriber(app: &TestApp) -> (SubscriberEmail, Confi
     (email, app.get_confirmation_links(email_request))
 }
 
-async fn create_confirmed_subscriber(app: &TestApp) -> SubscriberEmail {
+pub async fn create_confirmed_subscriber(app: &TestApp) -> SubscriberEmail {
     // We can reuse the same helper and just add
     // an extra step to actually call the confirmation link!
     let (email, confirmation_link) = create_unconfirmed_subscriber(app).await;
@@ -268,8 +268,14 @@ async fn newsletters_are_delivered_to_confirmed_subscribers_only() {
 
     // Assert for two subscribers, one being invalid
     let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
-    assert_eq!(newsletter_delivery_overview.num_current_subscribers, Some(2));
-    assert_eq!(newsletter_delivery_overview.num_delivered_newsletters, Some(1));
+    assert_eq!(
+        newsletter_delivery_overview.num_current_subscribers,
+        Some(2)
+    );
+    assert_eq!(
+        newsletter_delivery_overview.num_delivered_newsletters,
+        Some(1)
+    );
     assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(1));
 
     // Mock verifies on Drop that we have sent one newsletter email

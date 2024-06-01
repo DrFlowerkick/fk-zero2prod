@@ -276,6 +276,20 @@ impl TestApp {
         .await
         .unwrap()
     }
+
+    /// helper to get delivery overview
+    pub async fn get_delivery_overview(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/delivery_overview", self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    /// helper to get delivery overview html
+    pub async fn get_delivery_overview_html(&self) -> String {
+        self.get_delivery_overview().await.text().await.unwrap()
+    }
 }
 
 // Little helper function to assert redirected location
