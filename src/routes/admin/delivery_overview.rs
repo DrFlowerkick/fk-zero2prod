@@ -3,39 +3,64 @@
 use actix_web::{web, Responder};
 use anyhow::Context;
 use askama_actix::Template;
-use sqlx::PgPool;
-//use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::utils::e500;
 
 #[derive(Template)]
 #[template(path = "delivery_overview.html")]
 struct DeliveryOverview {
-    newsletters: Vec<NewsletterInfo>,
+    issue_to_display: Option<NewsletterIssue>,
+    newsletters: Vec<NewsletterIssue>,
 }
 
-struct NewsletterInfo {
+#[derive(Clone, Debug)]
+struct NewsletterIssue {
+    newsletter_issue_id: Uuid,
     title: String,
+    text_content: String,
+    html_content: String,
     published_at: DateTime<Utc>,
+    num_current_subscribers: Option<i32>,
+    num_delivered_newsletters: Option<i32>,
+    num_failed_deliveries: Option<i32>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct QueryData {
+    newsletter_issue_id: Uuid,
 }
 
 pub async fn delivery_overview(
+    query: Option<web::Query<QueryData>>,
     pool: web::Data<PgPool>,
 ) -> Result<impl Responder, actix_web::Error> {
     let newsletters = get_newsletters_info(&pool)
         .await
         .context("Failed to read infos of all newsletters")
         .map_err(e500)?;
-    Ok(DeliveryOverview { newsletters })
+    let issue_to_display = if let Some(f) = query {
+        newsletters
+            .iter()
+            .find(|n| n.newsletter_issue_id == f.newsletter_issue_id)
+            .cloned()
+    } else {
+        None
+    };
+    Ok(DeliveryOverview {
+        issue_to_display,
+        newsletters,
+    })
 }
 
 #[tracing::instrument(skip_all)]
-async fn get_newsletters_info(pool: &PgPool) -> Result<Vec<NewsletterInfo>, anyhow::Error> {
+async fn get_newsletters_info(pool: &PgPool) -> Result<Vec<NewsletterIssue>, anyhow::Error> {
     let newsletters_info = sqlx::query_as!(
-        NewsletterInfo,
+        NewsletterIssue,
         r#"
-        SELECT title, published_at
+        SELECT newsletter_issue_id, title, text_content, html_content, published_at, num_current_subscribers, num_delivered_newsletters, num_failed_deliveries
         FROM newsletter_issues
         "#
     )

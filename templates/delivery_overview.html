@@ -7,8 +7,26 @@
 {% endblock %}
 
 {% block content %}
+    {%if let Some(issue) = issue_to_display %}
+        <p><b>Newsletter title: {{ issue.title }}</b></p>
+        <p><b>Newsletter text content</b></p>
+        <p><i>{{ issue.text_content }}</i></p>
+        <p><b>Newsletter html content</b></p>
+        <p>{{ issue.html_content }}</p>
+        <p><i>published at: issue.published_at</i></p>
+        {% if issue.num_current_subscribers.is_some() %}
+            <p><i>num_current_subscribers: {{ issue.num_current_subscribers.unwrap() }}</i></p>
+            <p><i>num_delivered_newsletters: {{ issue.num_delivered_newsletters.unwrap() }}</i></p>
+            <p><i>num_failed_deliveries: {{ issue.num_failed_deliveries.unwrap() }}</i></p>
+            {% if issue.num_current_subscribers.unwrap() == issue.num_delivered_newsletters.unwrap() + issue.num_failed_deliveries.unwrap()%}
+                <p><i>Delivery status: finished.</i></p>
+            {% else %}
+                <p><i>Delivery status: in progress.</i></p>
+            {% endif %}
+        {% endif %}
+    {% endif %}
     <p>Delivery overview of newsletters!</p>
     {% for newsletter in newsletters %}
-        <p><i>{{newsletter.title|e}} published at {{newsletter.published_at|e}}</i></p>
+        <p><a href="/admin/delivery_overview?newsletter_issue_id={{newsletter.newsletter_issue_id|e}}" id="issue">{{newsletter.title|e}}</a> published at <i>{{newsletter.published_at|e}}</i></p>
     {% endfor %}
 {% endblock %}
