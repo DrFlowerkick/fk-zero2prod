@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::utils::e500;
+use crate::error::Z2PResult;
 
 #[derive(Template)]
 #[template(path = "delivery_overview.html")]
@@ -36,11 +36,10 @@ pub struct QueryData {
 pub async fn delivery_overview(
     query: Option<web::Query<QueryData>>,
     pool: web::Data<PgPool>,
-) -> Result<impl Responder, actix_web::Error> {
+) -> Z2PResult<impl Responder> {
     let newsletters = get_newsletters_info(&pool)
         .await
-        .context("Failed to read infos of all newsletters")
-        .map_err(e500)?;
+        .context("Failed to read infos of all newsletters")?;
     let issue_to_display = if let Some(f) = query {
         newsletters
             .iter()
@@ -56,7 +55,7 @@ pub async fn delivery_overview(
 }
 
 #[tracing::instrument(skip_all)]
-async fn get_newsletters_info(pool: &PgPool) -> Result<Vec<NewsletterIssue>, anyhow::Error> {
+async fn get_newsletters_info(pool: &PgPool) -> Result<Vec<NewsletterIssue>, sqlx::Error> {
     let newsletters_info = sqlx::query_as!(
         NewsletterIssue,
         r#"

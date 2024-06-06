@@ -27,7 +27,9 @@ pub async fn reject_anonymous_users(
             req.extensions_mut().insert(UserId(user_id));
             next.call(req).await
         }
-        None => Err(actix_web::Error::from(Error::from(SessionError::UserNotLoggedIn)))
+        None => Err(actix_web::Error::from(Error::from(
+            SessionError::UserNotLoggedIn,
+        ))),
     }
 }
 

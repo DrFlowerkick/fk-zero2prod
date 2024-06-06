@@ -2,12 +2,12 @@
 
 use crate::authentication::CredentialsError;
 use crate::domain::ValidationError;
+use crate::routes::NewsletterError;
 use crate::session_state::SessionError;
 use crate::utils::see_other;
 use actix_web_flash_messages::FlashMessage;
 
 pub type Z2PResult<T> = Result<T, Error>;
-pub type RouteResult<T> = Result<T, actix_web::Error>;
 
 pub fn error_chain_fmt(
     e: &impl std::error::Error,
@@ -30,6 +30,8 @@ pub enum Error {
     LoginError,
     #[error("Failure changing password")]
     PasswordChangingError(#[from] CredentialsError),
+    #[error("Unvalid input for Newsletter")]
+    NewsletterError(#[from] NewsletterError),
     #[error("Session state error")]
     SessionStateError(#[from] SessionError),
     #[error("Wrong format of idempotency key")]
@@ -61,6 +63,11 @@ impl From<Error> for actix_web::Error {
             Error::PasswordChangingError(ref pcerr) => {
                 FlashMessage::error(pcerr.to_string()).send();
                 let response = see_other("/admin/password");
+                actix_web::error::InternalError::from_response(err, response).into()
+            }
+            Error::NewsletterError(ref nwerr) => {
+                FlashMessage::error(nwerr.to_string()).send();
+                let response = see_other("/admin/newsletters");
                 actix_web::error::InternalError::from_response(err, response).into()
             }
             Error::UnexpectedError(_) => actix_web::error::ErrorInternalServerError(err),
