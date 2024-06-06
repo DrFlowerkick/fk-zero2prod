@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::authentication::UserId;
 use crate::idempotency::{save_response, try_processing, IdempotencyKey, NextAction};
 use crate::routes::SubscriptionsStatus;
-use crate::utils::{e400, e500, see_other};
+use crate::utils::{e500, see_other};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct NewsletterFormData {
@@ -51,7 +51,7 @@ pub async fn publish_newsletter(
         idempotency_key,
     } = form.0;
 
-    let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(e400)?;
+    let idempotency_key: IdempotencyKey = idempotency_key.try_into()?;
     let mut transaction = match try_processing(&pool, &idempotency_key, *user_id)
         .await
         .map_err(e500)?

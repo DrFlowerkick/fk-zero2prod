@@ -1,14 +1,15 @@
 //! src/authentication/middleware.rs
 
-use crate::session_state::TypedSession;
-use crate::utils::{e500, see_other};
+use crate::error::{Error, Z2PResult};
+use crate::session_state::{SessionError, TypedSession};
 use actix_web::{
     body::MessageBody,
     dev::{ServiceRequest, ServiceResponse},
-    error::InternalError,
     FromRequest, HttpMessage,
 };
 use actix_web_lab::middleware::Next;
+use anyhow::Context;
+use sqlx::PgPool;
 use std::ops::Deref;
 use uuid::Uuid;
 
@@ -21,16 +22,12 @@ pub async fn reject_anonymous_users(
         TypedSession::from_request(http_request, payload).await
     }?;
 
-    match session.get_user_id().map_err(e500)? {
+    match session.get_user_id()? {
         Some(user_id) => {
             req.extensions_mut().insert(UserId(user_id));
             next.call(req).await
         }
-        None => {
-            let response = see_other("/login");
-            let e = anyhow::anyhow!("The user has not logged in.");
-            Err(InternalError::from_response(e, response).into())
-        }
+        None => Err(actix_web::Error::from(Error::from(SessionError::UserNotLoggedIn)))
     }
 }
 
@@ -48,5 +45,24 @@ impl Deref for UserId {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl UserId {
+    #[tracing::instrument(name = "Get username from UserID", skip(pool))]
+    pub async fn get_username(&self, pool: &PgPool) -> Z2PResult<String> {
+        let row = sqlx::query!(
+            r#"
+            SELECT username
+            FROM users
+            WHERE user_id = $1
+            "#,
+            self.0,
+        )
+        .fetch_optional(pool)
+        .await
+        .context("Failed to perform query to retrieve a username.")?;
+        let username = row.map(|r| r.username).ok_or(SessionError::UserNotFound)?;
+        Ok(username)
     }
 }
