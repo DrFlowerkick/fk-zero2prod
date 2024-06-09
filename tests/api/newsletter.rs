@@ -104,7 +104,7 @@ pub async fn create_confirmed_subscriber(app: &TestApp) -> SubscriberEmail {
     email
 }
 
-async fn make_valid_subscriber_email_invalid(app: &TestApp, email: SubscriberEmail) {
+async fn make_valid_subscriber_email_unvalid(app: &TestApp, email: SubscriberEmail) {
     // get user_id from email
     let subscriber_id = sqlx::query!(
         "SELECT id FROM subscriptions \
@@ -115,11 +115,11 @@ async fn make_valid_subscriber_email_invalid(app: &TestApp, email: SubscriberEma
     .await
     .unwrap()
     .id;
-    // make invalid
-    let invalid_email = email.as_ref().replace("@", "_at_");
+    // make unvalid
+    let unvalid_email = email.as_ref().replace("@", "_at_");
     sqlx::query!(
         r#"UPDATE subscriptions SET email = $1 WHERE id = $2"#,
-        invalid_email,
+        unvalid_email,
         subscriber_id,
     )
     .execute(&app.db_pool)
@@ -238,8 +238,6 @@ async fn newsletters_are_delivered_to_confirmed_subscribers_only() {
     // Arrange
     let test_app = spawn_app().await;
     create_confirmed_subscriber(&test_app).await;
-    let invalid_email = create_confirmed_subscriber(&test_app).await;
-    make_valid_subscriber_email_invalid(&test_app, invalid_email).await;
 
     when_sending_an_email()
         .respond_with(ResponseTemplate::new(200))
@@ -270,15 +268,164 @@ async fn newsletters_are_delivered_to_confirmed_subscribers_only() {
     let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
     assert_eq!(
         newsletter_delivery_overview.num_current_subscribers,
-        Some(2)
+        Some(1)
     );
     assert_eq!(
         newsletter_delivery_overview.num_delivered_newsletters,
         Some(1)
     );
-    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(1));
+    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(0));
 
     // Mock verifies on Drop that we have sent one newsletter email
+}
+
+#[tokio::test]
+async fn unvalid_emails_are_discarded_from_task_pool() {
+    // Arrange
+    let test_app = spawn_app().await;
+    let unvalid_email = create_confirmed_subscriber(&test_app).await;
+    make_valid_subscriber_email_unvalid(&test_app, unvalid_email).await;
+
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act - Part 1 - Login
+    test_app.test_user.login(&test_app).await;
+
+    // Act - Part 2 -
+    let response = test_app
+        .post_newsletters(&valid_newsletter_form_data())
+        .await;
+
+    // Assert
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    // Act - Part 3 - Follow the redirect
+    let html_page = test_app.get_publish_newsletter_html().await;
+    assert!(html_page.contains(
+        "<p><i>The newsletter issue has been accepted - \
+        emails will go out shortly.</i></p>"
+    ));
+    test_app.dispatch_all_pending_emails().await;
+
+    // Assert for two subscribers, one being invalid
+    let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
+    assert_eq!(
+        newsletter_delivery_overview.num_current_subscribers,
+        Some(1)
+    );
+    assert_eq!(
+        newsletter_delivery_overview.num_delivered_newsletters,
+        Some(0)
+    );
+    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(1));
+
+    // Mock verifies on Drop that we have sent no newsletter email
+}
+
+#[tokio::test]
+async fn sending_of_newsletter_is_retried_n_times_at_transient_failures() {
+    // Arrange
+    let test_app = spawn_app().await;
+    create_confirmed_subscriber(&test_app).await;
+
+    // add +1 to n_retries since it is one first try and than n retries.
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(500))
+        .expect((test_app.n_retries + 1) as u64)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act - Part 1 - Login
+    test_app.test_user.login(&test_app).await;
+
+    // Act - Part 2 -
+    let response = test_app
+        .post_newsletters(&valid_newsletter_form_data())
+        .await;
+
+    // Assert
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    // Act - Part 3 - Follow the redirect
+    let html_page = test_app.get_publish_newsletter_html().await;
+    assert!(html_page.contains(
+        "<p><i>The newsletter issue has been accepted - \
+        emails will go out shortly.</i></p>"
+    ));
+    test_app.dispatch_all_pending_emails().await;
+
+    // Assert for two subscribers, one being invalid
+    let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
+    assert_eq!(
+        newsletter_delivery_overview.num_current_subscribers,
+        Some(1)
+    );
+    assert_eq!(
+        newsletter_delivery_overview.num_delivered_newsletters,
+        Some(0)
+    );
+    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(1));
+
+    // Mock verifies on Drop that we have tried to send n newsletter email
+}
+
+#[tokio::test]
+async fn newsletter_is_send_after_m_transient_failure() {
+    // Arrange
+    let test_app = spawn_app().await;
+    create_confirmed_subscriber(&test_app).await;
+
+    // first email is answered with failure
+    // second email should pass
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(500))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act - Part 1 - Login
+    test_app.test_user.login(&test_app).await;
+
+    // Act - Part 2 -
+    let response = test_app
+        .post_newsletters(&valid_newsletter_form_data())
+        .await;
+
+    // Assert
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    // Act - Part 3 - Follow the redirect
+    let html_page = test_app.get_publish_newsletter_html().await;
+    assert!(html_page.contains(
+        "<p><i>The newsletter issue has been accepted - \
+        emails will go out shortly.</i></p>"
+    ));
+    test_app.dispatch_all_pending_emails().await;
+
+    // Assert for two subscribers, one being invalid
+    let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
+    assert_eq!(
+        newsletter_delivery_overview.num_current_subscribers,
+        Some(1)
+    );
+    assert_eq!(
+        newsletter_delivery_overview.num_delivered_newsletters,
+        Some(1)
+    );
+    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(0));
+
+    // Mock verifies on Drop that we have tried to send one email (answered with failure)
+    // and sent one newsletter email
 }
 
 #[tokio::test]

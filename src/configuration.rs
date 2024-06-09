@@ -67,6 +67,8 @@ pub struct EmailClientSettings {
     pub sender_email: String,
     pub token: Secret<String>,
     pub timeout_milliseconds: u64,
+    pub n_retries: u8,
+    pub execute_retry_after_milliseconds: u64,
 }
 
 impl EmailClientSettings {

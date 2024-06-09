@@ -10,6 +10,7 @@ use reqwest::Url;
 use scraper::{Html, Selector};
 use sqlx::{Connection, Executor, PgConnection, PgPool, Row};
 use std::str::FromStr;
+use std::time::Duration;
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
@@ -102,6 +103,8 @@ pub struct TestApp {
     pub api_client: reqwest::Client,
     pub email_client: EmailClient,
     pub db_name: String,
+    pub n_retries: u8,
+    pub time_delta: chrono::TimeDelta,
 }
 
 impl TestApp {
@@ -250,12 +253,18 @@ impl TestApp {
     /// helper to send all newsletter emails from task queue
     pub async fn dispatch_all_pending_emails(&self) {
         loop {
-            if let ExecutionOutcome::EmptyQueue =
-                try_execute_task(&self.db_pool, &self.email_client)
-                    .await
-                    .unwrap()
+            if let ExecutionOutcome::EmptyQueue = try_execute_task(
+                &self.db_pool,
+                &self.email_client,
+                self.n_retries,
+                self.time_delta,
+            )
+            .await
+            .unwrap()
             {
                 break;
+            } else {
+                tokio::time::sleep(Duration::from_millis(1)).await;
             }
         }
     }
@@ -359,6 +368,8 @@ pub async fn spawn_app() -> TestApp {
         c.application.port = 0;
         // use the mock server as email API
         c.emailclient.base_url = email_server.uri();
+        // reduce execute_retry_after_milliseconds to 50ms to shorten test time
+        c.emailclient.execute_retry_after_milliseconds = 50;
         c
     };
 
@@ -377,6 +388,10 @@ pub async fn spawn_app() -> TestApp {
         .build()
         .unwrap();
 
+    let time_delta = chrono::TimeDelta::milliseconds(
+        configuration.emailclient.execute_retry_after_milliseconds as i64,
+    );
+
     let test_app = TestApp {
         address: format!("http://127.0.0.1:{}", application_port),
         port: application_port,
@@ -384,8 +399,10 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         test_user: TestUser::generate(),
         api_client: client,
+        n_retries: configuration.emailclient.n_retries,
         email_client: configuration.emailclient.client(),
         db_name: configuration.database.database_name,
+        time_delta,
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
