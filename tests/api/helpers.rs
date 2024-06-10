@@ -251,22 +251,26 @@ impl TestApp {
     }
 
     /// helper to send all newsletter emails from task queue
-    pub async fn dispatch_all_pending_emails(&self) {
+    pub async fn dispatch_all_pending_emails(&self) -> bool {
+        let mut postponed_tasks = false;
         loop {
-            if let ExecutionOutcome::EmptyQueue = try_execute_task(
+            match try_execute_task(
                 &self.db_pool,
                 &self.email_client,
                 self.n_retries,
                 self.time_delta,
             )
             .await
-            .unwrap()
-            {
-                break;
-            } else {
-                tokio::time::sleep(Duration::from_millis(1)).await;
+            .unwrap() {
+                ExecutionOutcome::EmptyQueue => break,
+                ExecutionOutcome::PostponedTasks => {
+                    postponed_tasks = true;
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                },
+                ExecutionOutcome::TaskCompleted => {},
             }
         }
+        postponed_tasks
     }
 
     /// helper to read newsletter delivery overview
@@ -368,8 +372,10 @@ pub async fn spawn_app() -> TestApp {
         c.application.port = 0;
         // use the mock server as email API
         c.emailclient.base_url = email_server.uri();
-        // reduce execute_retry_after_milliseconds to 50ms to shorten test time
-        c.emailclient.execute_retry_after_milliseconds = 50;
+        // reduce n_retries to shorten test time
+        c.emailclient.n_retries = 3;
+        // reduce execute_retry_after_milliseconds to 1000ms to shorten test time
+        c.emailclient.execute_retry_after_milliseconds = 1000;
         c
     };
 

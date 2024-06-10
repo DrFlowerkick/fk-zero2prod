@@ -356,9 +356,11 @@ async fn sending_of_newsletter_is_retried_n_times_at_transient_failures() {
         "<p><i>The newsletter issue has been accepted - \
         emails will go out shortly.</i></p>"
     ));
-    test_app.dispatch_all_pending_emails().await;
 
-    // Assert for two subscribers, one being invalid
+    // Assert postponed tasks
+    assert!(test_app.dispatch_all_pending_emails().await);
+
+    // Assert delivery details
     let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
     assert_eq!(
         newsletter_delivery_overview.num_current_subscribers,
@@ -374,7 +376,7 @@ async fn sending_of_newsletter_is_retried_n_times_at_transient_failures() {
 }
 
 #[tokio::test]
-async fn newsletter_is_send_after_m_transient_failure() {
+async fn newsletter_is_send_after_a_transient_failure() {
     // Arrange
     let test_app = spawn_app().await;
     create_confirmed_subscriber(&test_app).await;
@@ -410,9 +412,11 @@ async fn newsletter_is_send_after_m_transient_failure() {
         "<p><i>The newsletter issue has been accepted - \
         emails will go out shortly.</i></p>"
     ));
-    test_app.dispatch_all_pending_emails().await;
+    
+    // Assert postponed tasks
+    assert!(test_app.dispatch_all_pending_emails().await);
 
-    // Assert for two subscribers, one being invalid
+    // Assert for delivery details
     let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
     assert_eq!(
         newsletter_delivery_overview.num_current_subscribers,

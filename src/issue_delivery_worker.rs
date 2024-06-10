@@ -152,6 +152,7 @@ async fn dequeue_task(
         r#"
         SELECT newsletter_issue_id, subscriber_email, n_retries, execute_after
         FROM issue_delivery_queue
+        WHERE NOW() > execute_after
         FOR UPDATE
         SKIP LOCKED
         LIMIT 1

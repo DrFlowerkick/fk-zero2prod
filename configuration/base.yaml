@@ -9,4 +9,5 @@ emailclient:
   sender_email: "noreply@ilkablumentritt.de"
   timeout_milliseconds: 10000
   n_retries: 10
-  execute_retry_after_milliseconds: 3_600_000
+  # currently 1h 
+  execute_retry_after_milliseconds: 3600000
