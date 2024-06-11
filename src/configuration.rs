@@ -59,6 +59,7 @@ pub struct ApplicationSettings {
     pub host: String,
     pub base_url: String,
     pub hmac_secret: Secret<String>,
+    pub idempotency_lifetime_minutes: u32,
 }
 
 #[derive(serde::Deserialize, Clone)]

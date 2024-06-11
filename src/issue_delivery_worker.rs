@@ -10,7 +10,7 @@ use std::time::Duration;
 use tracing::{field::display, Span};
 use uuid::Uuid;
 
-pub async fn run_worker_until_stopped(configuration: Settings) -> Z2PResult<()> {
+pub async fn run_delivery_worker_until_stopped(configuration: Settings) -> Z2PResult<()> {
     let connection_pool = get_connection_pool(&configuration.database);
     let max_retries = configuration.emailclient.n_retries;
     let time_delta = chrono::TimeDelta::milliseconds(

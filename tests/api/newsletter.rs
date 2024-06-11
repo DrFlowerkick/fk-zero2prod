@@ -12,6 +12,7 @@ use wiremock::{
 };
 use zero2prod::domain::SubscriberEmail;
 use zero2prod::routes::NewsletterFormData;
+use zero2prod::idempotency::delete_outlived_idempotency_key;
 
 /// have some helpers for Newsletters
 pub fn valid_newsletter_form_data() -> NewsletterFormData {
@@ -468,6 +469,10 @@ async fn newsletter_creation_is_idempotent() {
         emails will go out shortly.</i></p>"
     ));
     test_app.dispatch_all_pending_emails().await;
+
+    // Act - Part 5 - delete 1 idempotency key
+    assert_eq!(delete_outlived_idempotency_key(&test_app.db_pool, 0).await.unwrap(), 1);
+
     // Mock verifies on Drop that we have sent the newsletter email **once**
 }
 
