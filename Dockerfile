@@ -43,8 +43,10 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt/lists/*
 # Copy the compiled binary from builder environment to our runtime environment
 COPY --from=builder /app/target/release/zero2prod zero2prod
-# We need the configuration file at runtime!
+# We need the configuration files at runtime!
 COPY configuration configuration
+# We need the migration files at runtime!
+COPY migrations migrations
 # set environment to production
 ENV APP_ENVIRONMENT production
 # When `docker run` is executed, launch the binary!
