@@ -59,6 +59,7 @@ pub struct ApplicationSettings {
     pub host: String,
     pub base_url: String,
     pub hmac_secret: Secret<String>,
+    pub idempotency_lifetime_minutes: u32,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -67,6 +68,8 @@ pub struct EmailClientSettings {
     pub sender_email: String,
     pub token: Secret<String>,
     pub timeout_milliseconds: u64,
+    pub n_retries: u8,
+    pub execute_retry_after_milliseconds: u64,
 }
 
 impl EmailClientSettings {

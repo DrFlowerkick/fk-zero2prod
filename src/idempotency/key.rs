@@ -1,18 +1,18 @@
 //! src/idempotency/key.rs
 
+use crate::error::{Error, Z2PResult};
+use std::str::FromStr;
+use uuid::Uuid;
+
 #[derive(Debug)]
 pub struct IdempotencyKey(String);
 
 impl TryFrom<String> for IdempotencyKey {
-    type Error = anyhow::Error;
+    type Error = Error;
 
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        if s.is_empty() {
-            anyhow::bail!("The idempotency key cannot be empty");
-        }
-        let max_length = 50;
-        if s.len() >= max_length {
-            anyhow::bail!("the idempotency key must be shorter that {max_length} characters.");
+    fn try_from(s: String) -> Z2PResult<Self> {
+        if Uuid::from_str(&s).is_err() {
+            return Err(Error::IdempotencyKeyError);
         }
         Ok(Self(s))
     }

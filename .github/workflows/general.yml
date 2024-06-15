@@ -1,4 +1,4 @@
-name: Rust
+name: General Rust for zero2prod
 
 on:
   push:

@@ -1,9 +1,11 @@
 //! src/app_error.rs
 
-use crate::authentication::AuthError;
+use crate::authentication::CredentialsError;
 use crate::domain::ValidationError;
-use actix_web::http::{header, header::HeaderValue, StatusCode};
-use actix_web::{HttpResponse, ResponseError};
+use crate::routes::NewsletterError;
+use crate::session_state::SessionError;
+use crate::utils::see_other;
+use actix_web_flash_messages::FlashMessage;
 
 pub type Z2PResult<T> = Result<T, Error>;
 
@@ -24,12 +26,16 @@ pub fn error_chain_fmt(
 pub enum Error {
     #[error("Invalid input for subscription")]
     SubscriptionError(#[from] ValidationError),
-    #[error("Bad Request authentication header.")]
-    BadRequestAuthHeader(#[source] anyhow::Error),
-    #[error("Failed Basic Authentication")]
-    BasicAuthError(#[source] anyhow::Error),
     #[error("Failed Login Authentication")]
-    LoginError(#[source] anyhow::Error),
+    LoginError,
+    #[error("Failure changing password")]
+    PasswordChangingError(#[from] CredentialsError),
+    #[error("Unvalid input for Newsletter")]
+    NewsletterError(#[from] NewsletterError),
+    #[error("Session state error")]
+    SessionStateError(#[from] SessionError),
+    #[error("Wrong format of idempotency key")]
+    IdempotencyKeyError,
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
@@ -40,37 +46,31 @@ impl std::fmt::Debug for Error {
     }
 }
 
-impl ResponseError for Error {
-    fn error_response(&self) -> HttpResponse {
-        match self {
-            Error::SubscriptionError(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
-            Error::BasicAuthError(_) | Error::BadRequestAuthHeader(_) => {
-                let mut response = HttpResponse::new(StatusCode::UNAUTHORIZED);
-                let header_value = HeaderValue::from_str(r#"Basic realm="publish""#).unwrap();
-                response
-                    .headers_mut()
-                    // actix_web::http::header provides a collection of constants
-                    // for the names of several well-known/standard HTTP headers
-                    .insert(header::WWW_AUTHENTICATE, header_value);
-                response
+impl From<Error> for actix_web::Error {
+    fn from(err: Error) -> Self {
+        match err {
+            Error::SubscriptionError(_) | Error::IdempotencyKeyError => {
+                actix_web::error::ErrorBadRequest(err)
             }
-            Error::LoginError(_) => HttpResponse::new(StatusCode::BAD_REQUEST),
-            Error::UnexpectedError(_) => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
-        }
-    }
-}
-
-impl Error {
-    pub fn auth_error_to_basic_auth_error(err: AuthError) -> Self {
-        match err {
-            AuthError::InvalidCreds(err) => Self::BasicAuthError(err),
-            AuthError::UnexpectedError(err) => Self::UnexpectedError(err),
-        }
-    }
-    pub fn auth_error_to_login_error(err: AuthError) -> Self {
-        match err {
-            AuthError::InvalidCreds(err) => Self::LoginError(err),
-            AuthError::UnexpectedError(err) => Self::UnexpectedError(err),
+            Error::LoginError | Error::SessionStateError(_) => {
+                FlashMessage::error(err.to_string()).send();
+                let response = see_other("/login");
+                actix_web::error::InternalError::from_response(err, response).into()
+            }
+            Error::PasswordChangingError(CredentialsError::UnexpectedError(_)) => {
+                actix_web::error::ErrorInternalServerError(err)
+            }
+            Error::PasswordChangingError(ref pcerr) => {
+                FlashMessage::error(pcerr.to_string()).send();
+                let response = see_other("/admin/password");
+                actix_web::error::InternalError::from_response(err, response).into()
+            }
+            Error::NewsletterError(ref nwerr) => {
+                FlashMessage::error(nwerr.to_string()).send();
+                let response = see_other("/admin/newsletters");
+                actix_web::error::InternalError::from_response(err, response).into()
+            }
+            Error::UnexpectedError(_) => actix_web::error::ErrorInternalServerError(err),
         }
     }
 }

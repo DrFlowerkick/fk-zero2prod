@@ -1,9 +1,28 @@
 //! src/sessionn_state.rs
 
-use actix_session::{Session, SessionExt, SessionGetError, SessionInsertError};
+use crate::error::{error_chain_fmt, Error, Z2PResult};
+use actix_session::{Session, SessionExt};
 use actix_web::{dev::Payload, FromRequest, HttpRequest};
 use std::future::{ready, Ready};
 use uuid::Uuid;
+
+#[derive(thiserror::Error)]
+pub enum SessionError {
+    #[error("The user has not logged in.")]
+    UserNotLoggedIn,
+    #[error("User not found")]
+    UserNotFound,
+    #[error(transparent)]
+    SessionInsertError(#[from] actix_session::SessionInsertError),
+    #[error(transparent)]
+    SessionGetError(#[from] actix_session::SessionGetError),
+}
+
+impl std::fmt::Debug for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
 
 pub struct TypedSession(Session);
 
@@ -14,12 +33,18 @@ impl TypedSession {
         self.0.renew();
     }
 
-    pub fn insert_user_id(&self, user_id: Uuid) -> Result<(), SessionInsertError> {
-        self.0.insert(Self::USER_ID_KEY, user_id)
+    pub fn insert_user_id(&self, user_id: Uuid) -> Z2PResult<()> {
+        self.0
+            .insert(Self::USER_ID_KEY, user_id)
+            .map_err(SessionError::from)
+            .map_err(Error::from)
     }
 
-    pub fn get_user_id(&self) -> Result<Option<Uuid>, SessionGetError> {
-        self.0.get(Self::USER_ID_KEY)
+    pub fn get_user_id(&self) -> Z2PResult<Option<Uuid>> {
+        self.0
+            .get(Self::USER_ID_KEY)
+            .map_err(SessionError::from)
+            .map_err(Error::from)
     }
 
     pub fn log_out(self) {
