@@ -144,9 +144,7 @@ type PgTransaction = Transaction<'static, Postgres>;
 type TaskData = (PgTransaction, Uuid, String, u8, DateTime<Utc>);
 
 #[tracing::instrument(skip_all)]
-async fn dequeue_task(
-    pool: &PgPool,
-) -> Result<Option<TaskData>, anyhow::Error> {
+async fn dequeue_task(pool: &PgPool) -> Result<Option<TaskData>, anyhow::Error> {
     let mut transaction: PgTransaction = pool.begin().await?;
     let query = sqlx::query!(
         r#"

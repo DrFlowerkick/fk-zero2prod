@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT num_delivered_newsletters\n        FROM newsletter_issues\n        WHERE\n            newsletter_issue_id = $1\n        FOR UPDATE;\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "num_delivered_newsletters",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c8556f79ec6c4674a359928b313e189b903f1195dc0faa588c129b65b498c038"
+}

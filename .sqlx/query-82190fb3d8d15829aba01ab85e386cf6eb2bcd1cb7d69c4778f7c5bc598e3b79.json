@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT newsletter_issue_id, title, text_content, html_content, published_at, num_current_subscribers, num_delivered_newsletters, num_failed_deliveries\n        FROM newsletter_issues\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "newsletter_issue_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "text_content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "html_content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "published_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "num_current_subscribers",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "num_delivered_newsletters",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "num_failed_deliveries",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "82190fb3d8d15829aba01ab85e386cf6eb2bcd1cb7d69c4778f7c5bc598e3b79"
+}

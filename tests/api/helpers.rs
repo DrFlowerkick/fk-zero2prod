@@ -261,13 +261,14 @@ impl TestApp {
                 self.time_delta,
             )
             .await
-            .unwrap() {
+            .unwrap()
+            {
                 ExecutionOutcome::EmptyQueue => break,
                 ExecutionOutcome::PostponedTasks => {
                     postponed_tasks = true;
                     tokio::time::sleep(Duration::from_millis(1)).await;
-                },
-                ExecutionOutcome::TaskCompleted => {},
+                }
+                ExecutionOutcome::TaskCompleted => {}
             }
         }
         postponed_tasks
