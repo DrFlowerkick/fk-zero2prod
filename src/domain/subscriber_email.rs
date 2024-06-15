@@ -1,14 +1,14 @@
 //! src/domain/subscriber_email.rs
 
 use crate::domain::ValidationError;
-use validator::validate_email;
+use validator::ValidateEmail;
 
 #[derive(Debug)]
 pub struct SubscriberEmail(String);
 
 impl SubscriberEmail {
     pub fn parse(s: String) -> Result<SubscriberEmail, ValidationError> {
-        if validate_email(&s) {
+        if s.validate_email() {
             Ok(Self(s))
         } else {
             Err(ValidationError::InvalidEmail(s))
@@ -28,13 +28,20 @@ mod tests {
     use claims::assert_err;
     use fake::faker::internet::en::SafeEmail;
     use fake::Fake;
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
 
     #[derive(Debug, Clone)]
     struct ValidEmailFixture(pub String);
 
     impl quickcheck::Arbitrary for ValidEmailFixture {
-        fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Self {
-            let email = SafeEmail().fake_with_rng(g);
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            // create a random generator with a seed from Gen
+            let seed: u64 = quickcheck::Arbitrary::arbitrary(g);
+            let mut rng: StdRng = StdRng::seed_from_u64(seed);
+
+            // generate a SafeEmail address
+            let email = SafeEmail().fake_with_rng(&mut rng);
             Self(email)
         }
     }

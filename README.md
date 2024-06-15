@@ -1,4 +1,6 @@
 # fk-zero2prod
-Repo for zero2prod code
+Repo for zero2prod code.
 
-Sone more to follow
+See Book repo https://github.com/LukeMathWalker/zero-to-production
+
+Soon more to follow

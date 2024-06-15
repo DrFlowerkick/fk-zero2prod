@@ -1,6 +1,7 @@
 //! src/authentication/password.rs
 
 use crate::error::error_chain_fmt;
+use crate::routes::PasswordFormData;
 use crate::telemetry::spawn_blocking_with_tracing;
 use anyhow::Context;
 use argon2::{
@@ -10,15 +11,23 @@ use argon2::{
 use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 
+type CredsResult<T> = Result<T, CredentialsError>;
+
 #[derive(thiserror::Error)]
-pub enum AuthError {
-    #[error("Invalid credentials.")]
-    InvalidCreds(#[source] anyhow::Error),
+pub enum CredentialsError {
+    #[error("Username could not be found.")]
+    UnknownUsername,
+    #[error("Failed to verify password.")]
+    PasswordVerifikationFailed(#[from] argon2::password_hash::Error),
+    #[error("You entered two different new passwords - the field values must match.")]
+    DifferentNewPasswords,
+    #[error("The new password is unvalid.")]
+    UnvalidNewPassword,
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
 
-impl std::fmt::Debug for AuthError {
+impl std::fmt::Debug for CredentialsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
     }
@@ -33,7 +42,7 @@ pub struct Credentials {
 pub async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
-) -> Result<uuid::Uuid, AuthError> {
+) -> CredsResult<uuid::Uuid> {
     let mut user_id: Option<uuid::Uuid> = None;
     let mut expected_password_hash = Secret::new(
         "$argon2id$v=19$m=15000,t=2,p=1$\
@@ -54,9 +63,7 @@ pub async fn validate_credentials(
     .await
     .context("Failed to spawn blocking task.")??;
     // user_id is only set to Some, if we found credentials in database
-    user_id
-        .context("Unknown username.")
-        .map_err(AuthError::InvalidCreds)
+    user_id.ok_or(CredentialsError::UnknownUsername)
 }
 
 #[tracing::instrument(
@@ -66,23 +73,21 @@ pub async fn validate_credentials(
 fn verify_password_hash(
     expected_password_hash: Secret<String>,
     password_candidate: Secret<String>,
-) -> Result<(), AuthError> {
+) -> CredsResult<()> {
     let expected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
         .context("Failed to parse hash in PHC string format.")?;
-    Argon2::default()
-        .verify_password(
-            password_candidate.expose_secret().as_bytes(),
-            &expected_password_hash,
-        )
-        .context("Invalid password")
-        .map_err(AuthError::InvalidCreds)
+    Argon2::default().verify_password(
+        password_candidate.expose_secret().as_bytes(),
+        &expected_password_hash,
+    )?;
+    Ok(())
 }
 
 #[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
 async fn get_stored_credentials(
     username: &str,
     pool: &PgPool,
-) -> Result<Option<(uuid::Uuid, Secret<String>)>, AuthError> {
+) -> CredsResult<Option<(uuid::Uuid, Secret<String>)>> {
     let row = sqlx::query!(
         r#"
         SELECT user_id, password_hash
@@ -103,11 +108,10 @@ pub async fn change_password_in_db(
     user_id: uuid::Uuid,
     password: Secret<String>,
     pool: &PgPool,
-) -> Result<(), AuthError> {
+) -> CredsResult<()> {
     let password_hash = spawn_blocking_with_tracing(move || compute_password_hash(password))
         .await
-        .context("Failed to spawn computation of password hash")?
-        .context("Failed to compute password hash")?;
+        .context("Failed to spawn computation of password hash")??;
     sqlx::query!(
         r#"
         UPDATE users
@@ -123,7 +127,7 @@ pub async fn change_password_in_db(
     Ok(())
 }
 
-fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, AuthError> {
+fn compute_password_hash(password: Secret<String>) -> CredsResult<Secret<String>> {
     let salt = SaltString::generate(&mut rand::thread_rng());
     let password_hash = Argon2::new(
         Algorithm::Argon2id,
@@ -134,4 +138,33 @@ fn compute_password_hash(password: Secret<String>) -> Result<Secret<String>, Aut
     .context("Failed to hash password.")?
     .to_string();
     Ok(Secret::new(password_hash))
+}
+
+pub async fn check_new_password(
+    username: String,
+    form: &PasswordFormData,
+    pool: &PgPool,
+) -> CredsResult<()> {
+    // check for equal new passwords
+    if form.new_password.expose_secret() != form.new_password_check.expose_secret() {
+        return Err(CredentialsError::DifferentNewPasswords);
+    }
+    let credentials = Credentials {
+        username,
+        password: form.current_password.to_owned(),
+    };
+    // validate current password
+    validate_credentials(credentials, pool).await?;
+    // check new password properties
+    if form.new_password.expose_secret().chars().count() < 13
+        || form.new_password.expose_secret().chars().count() > 128
+        || form
+            .new_password
+            .expose_secret()
+            .chars()
+            .any(|c| c.is_ascii_whitespace())
+    {
+        return Err(CredentialsError::UnvalidNewPassword);
+    }
+    Ok(())
 }

@@ -5,8 +5,9 @@ use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
 use crate::error::{Error, Z2PResult};
 use crate::routes::{
-    admin_dashboard, change_password, change_password_form, confirm, health_check, home, log_out,
-    login, login_form, publish_newsletter, publish_newsletter_form, subscribe,
+    admin_dashboard, change_password, change_password_form, confirm, delivery_overview,
+    health_check, home, log_out, login, login_form, publish_newsletter, publish_newsletter_form,
+    subscribe,
 };
 use actix_session::{storage::RedisSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, web, web::Data, App, HttpServer};
@@ -26,17 +27,13 @@ pub struct Application {
 impl Application {
     pub async fn build(configuration: Settings) -> Z2PResult<Self> {
         let connection_pool = get_connection_pool(&configuration.database);
-        let sender_email = configuration
-            .emailclient
-            .sender()
-            .expect("Invalid sender email address.");
-        let timeout = configuration.emailclient.timeout();
-        let email_client = EmailClient::new(
-            configuration.emailclient.base_url,
-            sender_email,
-            configuration.emailclient.token,
-            timeout,
-        );
+        // migrate production database
+        sqlx::migrate!("./migrations")
+            .run(&connection_pool)
+            .await
+            .context("Failed to migrate the database.")?;
+
+        let email_client = configuration.emailclient.client();
         let address = format!(
             "{}:{}",
             configuration.application.host, configuration.application.port
@@ -112,6 +109,7 @@ async fn run(
                 web::scope("/admin")
                     .wrap(from_fn(reject_anonymous_users))
                     .route("/dashboard", web::get().to(admin_dashboard))
+                    .route("/delivery_overview", web::get().to(delivery_overview))
                     .route("/newsletters", web::get().to(publish_newsletter_form))
                     .route("/newsletters", web::post().to(publish_newsletter))
                     .route("/password", web::get().to(change_password_form))

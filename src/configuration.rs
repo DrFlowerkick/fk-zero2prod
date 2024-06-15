@@ -1,4 +1,6 @@
 //! src/configuration.rs
+
+use crate::email_client::EmailClient;
 use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::{
@@ -57,6 +59,7 @@ pub struct ApplicationSettings {
     pub host: String,
     pub base_url: String,
     pub hmac_secret: Secret<String>,
+    pub idempotency_lifetime_minutes: u32,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -65,6 +68,8 @@ pub struct EmailClientSettings {
     pub sender_email: String,
     pub token: Secret<String>,
     pub timeout_milliseconds: u64,
+    pub n_retries: u8,
+    pub execute_retry_after_milliseconds: u64,
 }
 
 impl EmailClientSettings {
@@ -73,6 +78,11 @@ impl EmailClientSettings {
     }
     pub fn timeout(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.timeout_milliseconds)
+    }
+    pub fn client(self) -> EmailClient {
+        let sender_email = self.sender().expect("Invalid sender email address.");
+        let timeout = self.timeout();
+        EmailClient::new(self.base_url, sender_email, self.token, timeout)
     }
 }
 

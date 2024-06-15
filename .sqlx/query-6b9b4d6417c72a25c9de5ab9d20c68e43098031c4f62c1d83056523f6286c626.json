@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE newsletter_issues\n        SET\n            num_delivered_newsletters = $2\n        WHERE\n            newsletter_issue_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6b9b4d6417c72a25c9de5ab9d20c68e43098031c4f62c1d83056523f6286c626"
+}
