@@ -198,6 +198,16 @@ impl TestApp {
             .unwrap()
     }
 
+    /// helper to get subscriptions response
+    pub async fn get_subscriptions(&self) -> reqwest::Response {
+        self.get_response_from_url("/subscriptions").await
+    }
+
+    /// helper to get subscriptions html
+    pub async fn get_subscriptions_html(&self) -> String {
+        self.get_subscriptions().await.text().await.unwrap()
+    }
+
     /// helper to get admin dashboard
     pub async fn get_admin_dashboard(&self) -> reqwest::Response {
         self.get_response_from_url("/admin/dashboard").await

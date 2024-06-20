@@ -79,14 +79,16 @@ pub async fn subscribe(
                 let subscriber_id =
                     get_subscriber_id_from_email(pool.as_ref(), &new_subscriber).await?;
                 // existing subscriber, check if status is confirmed
-                if get_status_from_subscriber_id(pool.as_ref(), subscriber_id).await?
-                    == SubscriptionsStatus::Confirmed
-                {
-                    // new subscriber is already confirmed
-                    return Ok(HttpResponse::Ok().finish());
+                match get_status_from_subscriber_id(pool.as_ref(), subscriber_id).await? {
+                    SubscriptionsStatus::Confirmed => {
+                        // new subscriber is already confirmed
+                        return Ok(HttpResponse::Ok().finish());
+                    },
+                    SubscriptionsStatus::PendingConfirmation => {
+                        // grab token of existing subscriber with id
+                        get_token_from_subscriber_id(pool.as_ref(), subscriber_id).await?
+                    },
                 }
-                // grab token of existing subscriber
-                fetch_token_of_subscriber(&new_subscriber, pool.as_ref()).await?
             } else {
                 return Err(err);
             }
@@ -126,21 +128,6 @@ pub async fn subscribe_transaction(
         .await
         .context("Failed to commit SQL transaction to store a new subscriber.")?;
     // return transaction token
-    Ok(subscription_token)
-}
-
-#[tracing::instrument(
-    name = "Fetching subscription token of subscriber from the database.",
-    skip(subscriber, pool)
-)]
-pub async fn fetch_token_of_subscriber(
-    subscriber: &NewSubscriber,
-    pool: &PgPool,
-) -> Z2PResult<SubscriberToken> {
-    // get uuid from subscription table with email
-    let subscriber_id = get_subscriber_id_from_email(pool, subscriber).await?;
-    // 2. get subscription token with uuid
-    let subscription_token = get_token_from_subscriber_id(pool, subscriber_id).await?;
     Ok(subscription_token)
 }
 
