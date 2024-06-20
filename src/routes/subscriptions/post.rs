@@ -1,4 +1,4 @@
-//! src/routes/subscriptions.rs
+//! src/routes/subscriptions/post.rs
 
 // required for source()
 use std::error::Error as StdError;
@@ -70,7 +70,8 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
 ) -> Z2PResult<HttpResponse> {
-    let new_subscriber = form.0.try_into()?;
+    let new_subscriber = form.0.try_into();
+    let new_subscriber = new_subscriber?;
     let subscription_token = match subscribe_transaction(&new_subscriber, pool.as_ref()).await {
         Ok(new_subscription_token) => new_subscription_token,
         Err(err) => {

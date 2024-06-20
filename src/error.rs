@@ -49,7 +49,12 @@ impl std::fmt::Debug for Error {
 impl From<Error> for actix_web::Error {
     fn from(err: Error) -> Self {
         match err {
-            Error::SubscriptionError(_) | Error::IdempotencyKeyError => {
+            Error::SubscriptionError(ref valerr) => {
+                FlashMessage::error(valerr.to_string()).send();
+                let response = see_other("/subscriptions");
+                actix_web::error::InternalError::from_response(err, response).into()
+            }
+            Error::IdempotencyKeyError => {
                 actix_web::error::ErrorBadRequest(err)
             }
             Error::LoginError | Error::SessionStateError(_) => {

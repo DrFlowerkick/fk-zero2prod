@@ -208,6 +208,16 @@ impl TestApp {
         self.get_subscriptions().await.text().await.unwrap()
     }
 
+    /// helper to get subscriptions/confirm response
+    pub async fn get_subscriptions_confirm(&self) -> reqwest::Response {
+        self.get_response_from_url("/subscriptions/confirm").await
+    }
+
+    /// helper to get subscriptions/confirm html
+    pub async fn get_subscriptions_confirm_html(&self) -> String {
+        self.get_subscriptions_confirm().await.text().await.unwrap()
+    }
+
     /// helper to get admin dashboard
     pub async fn get_admin_dashboard(&self) -> reqwest::Response {
         self.get_response_from_url("/admin/dashboard").await

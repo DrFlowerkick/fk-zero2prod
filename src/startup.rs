@@ -7,7 +7,7 @@ use crate::error::{Error, Z2PResult};
 use crate::routes::{
     admin_dashboard, change_password, change_password_form, confirm, delivery_overview,
     health_check, home, log_out, login, login_form, publish_newsletter, publish_newsletter_form,
-    subscribe,
+    subscribe, subscription_form
 };
 use actix_session::{storage::RedisSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, web, web::Data, App, HttpServer};
@@ -103,6 +103,7 @@ async fn run(
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
             .route("/health_check", web::get().to(health_check))
+            .route("/subscriptions", web::get().to(subscription_form))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .service(
