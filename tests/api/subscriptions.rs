@@ -63,7 +63,6 @@ async fn you_must_set_valid_user_name_to_subscribe() {
             "The API did not react with correct html response when payload was {}.",
             test_failing_message
         );
-
     }
 }
 
