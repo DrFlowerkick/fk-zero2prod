@@ -17,6 +17,7 @@ use crate::email_client::EmailClient;
 use crate::error::{Error, Z2PResult};
 use crate::routes::SubscriptionsStatus;
 use crate::startup::ApplicationBaseUrl;
+use crate::utils::see_other;
 
 /// Checks if err results from trying to subscribe the same email twice
 fn is_email_subscribed_twice_err(err: &Error) -> bool {
@@ -102,7 +103,7 @@ pub async fn subscribe(
         &subscription_token,
     )
     .await?;
-    Ok(HttpResponse::Ok().finish())
+    Ok(see_other("/subscriptions/token"))
 }
 
 #[tracing::instrument(

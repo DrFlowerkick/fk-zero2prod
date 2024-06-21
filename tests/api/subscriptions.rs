@@ -101,8 +101,6 @@ async fn you_must_set_valid_email_to_subscribe() {
     }
 }
 
-// ToDo: rework test. Do not return 200. Instead check for Html flash message
-// check newsletter tests: use assert_is_redirect_to
 #[tokio::test]
 async fn subscribe_with_valid_form_data() {
     // Arrange
@@ -120,7 +118,7 @@ async fn subscribe_with_valid_form_data() {
     let response = test_app.post_subscriptions(body.into()).await;
 
     // Assert
-    assert_is_redirect_to(&response, "/subscriptions/confirm");
+    assert_is_redirect_to(&response, "/subscriptions/token");
 
 
     // Act - Part 2 - persist of new subscriber
@@ -137,18 +135,7 @@ async fn subscribe_with_valid_form_data() {
     assert_eq!(saved.status, SubscriptionsStatus::PendingConfirmation);
 
 
-    // Act - Part 3 - Follow the redirect
-    let html_page = test_app.get_subscriptions_confirm_html().await;
-
-    // Assert
-    assert!(html_page.contains(&format!(
-        "<p><i>`{}` check your email {} for confirmation code or use confirmation link.</i></p>",
-        saved.name,
-        saved.email
-    )));
-
-
-    // Act - Part 4 - Get the first intercepted email request
+    // Act - Part 3 - Get the first intercepted email request
     // Assert
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
     let confirmation_links = test_app.get_confirmation_links(&email_request);
@@ -157,78 +144,6 @@ async fn subscribe_with_valid_form_data() {
 
 
     // Mock asserts on drop, that exactly one confirmation email is send
-}
-
-/*
-#[tokio::test]
-async fn subscribe_persists_the_new_subscriber() {
-    // Arrange
-    let test_app = spawn_app().await;
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .mount(&test_app.email_server)
-        .await;
-
-    // Act
-    test_app.post_subscriptions(body.into()).await;
-
-    // Assert
-    let saved = sqlx::query!(
-        "SELECT email, name, status AS \"status: SubscriptionsStatus\" FROM subscriptions"
-    )
-    .fetch_one(&test_app.db_pool)
-    .await
-    .expect("Failed to fetch saved subscription.");
-
-    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved.name, "le guin");
-    assert_eq!(saved.status, SubscriptionsStatus::PendingConfirmation);
-}
-
-#[tokio::test]
-async fn subscribe_sends_a_confirmation_email_for_valid_data() {
-    // Arrange
-    let test_app = spawn_app().await;
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&test_app.email_server)
-        .await;
-
-    // Act
-    test_app.post_subscriptions(body.into()).await;
-
-    // Assert
-    // Mock asserts on drop
-}
-
-#[tokio::test]
-async fn subscribe_sends_a_confirmation_email_with_a_link() {
-    // Arrange
-    let test_app = spawn_app().await;
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .mount(&test_app.email_server)
-        .await;
-
-    // Act
-    test_app.post_subscriptions(body.into()).await;
-
-    // Assert
-    // Get the first intercepted request
-    let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = test_app.get_confirmation_links(&email_request);
-    // The two links should be identical
-    assert_eq!(confirmation_links.html, confirmation_links.plain_text);
 }
 
 #[tokio::test]
@@ -241,6 +156,7 @@ async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_
     Mock::given(path("/email"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
+        .expect(2)
         .mount(&test_app.email_server)
         .await;
 
@@ -250,12 +166,9 @@ async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_
     let email_requests = &test_app.email_server.received_requests().await.unwrap();
 
     // Assert
-    assert_eq!(200, response_first.status().as_u16(), "first subscription");
-    assert_eq!(
-        200,
-        response_second.status().as_u16(),
-        "second subscription"
-    );
+    assert_is_redirect_to(&response_first, "/subscriptions/token");
+    assert_is_redirect_to(&response_second, "/subscriptions/token");
+    
     let confirmation_links_first = test_app.get_confirmation_links(&email_requests[0]);
     let confirmation_links_second = test_app.get_confirmation_links(&email_requests[1]);
     assert_eq!(confirmation_links_first, confirmation_links_second);
@@ -265,8 +178,9 @@ async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_
         reciever_email_first.as_ref(),
         reciever_email_second.as_ref()
     );
+
+    // Mock asserts on drop, that exactly two confirmation emails are send
 }
-*/
 
 #[tokio::test]
 async fn subscribe_fails_if_there_is_a_fatal_database_error() {
