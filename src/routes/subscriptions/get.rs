@@ -15,7 +15,5 @@ pub async fn subscription_form(flash_messages: IncomingFlashMessages) -> impl Re
         .iter()
         .map(|m| m.content().to_string())
         .collect();
-    SubscriptionsTemplate {
-        flash_messages,
-    }
+    SubscriptionsTemplate { flash_messages }
 }

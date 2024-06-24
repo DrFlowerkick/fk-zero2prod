@@ -51,12 +51,15 @@ impl From<Error> for actix_web::Error {
         match err {
             Error::SubscriptionError(ref valerr) => {
                 FlashMessage::error(valerr.to_string()).send();
-                let response = see_other("/subscriptions");
+                let response = match valerr {
+                    ValidationError::InvalidEmail(_) | ValidationError::InvalidName(_) => {
+                        see_other("/subscriptions")
+                    }
+                    ValidationError::InvalidToken(_) => see_other("/subscriptions/token"),
+                };
                 actix_web::error::InternalError::from_response(err, response).into()
             }
-            Error::IdempotencyKeyError => {
-                actix_web::error::ErrorBadRequest(err)
-            }
+            Error::IdempotencyKeyError => actix_web::error::ErrorBadRequest(err),
             Error::LoginError | Error::SessionStateError(_) => {
                 FlashMessage::error(err.to_string()).send();
                 let response = see_other("/login");

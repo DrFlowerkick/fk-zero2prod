@@ -84,12 +84,18 @@ pub async fn subscribe(
                 match get_status_from_subscriber_id(pool.as_ref(), subscriber_id).await? {
                     SubscriptionsStatus::Confirmed => {
                         // new subscriber is already confirmed
-                        return Ok(HttpResponse::Ok().finish());
-                    },
+                        // grab token of existing subscriber with id
+                        let token =
+                            get_token_from_subscriber_id(pool.as_ref(), subscriber_id).await?;
+                        return Ok(see_other(&format!(
+                            "/subscriptions/confirm?subscription_token={}",
+                            token.as_ref()
+                        )));
+                    }
                     SubscriptionsStatus::PendingConfirmation => {
                         // grab token of existing subscriber with id
                         get_token_from_subscriber_id(pool.as_ref(), subscriber_id).await?
-                    },
+                    }
                 }
             } else {
                 return Err(err);

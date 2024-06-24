@@ -7,7 +7,7 @@ use crate::error::{Error, Z2PResult};
 use crate::routes::{
     admin_dashboard, change_password, change_password_form, confirm, delivery_overview,
     health_check, home, log_out, login, login_form, publish_newsletter, publish_newsletter_form,
-    subscribe, subscription_form, subscription_token
+    subscribe, subscription_form, subscription_token,
 };
 use actix_session::{storage::RedisSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, web, web::Data, App, HttpServer};

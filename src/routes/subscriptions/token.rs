@@ -15,7 +15,5 @@ pub async fn subscription_token(flash_messages: IncomingFlashMessages) -> impl R
         .iter()
         .map(|m| m.content().to_string())
         .collect();
-    SubscriptionsTokenTemplate {
-        flash_messages,
-    }
+    SubscriptionsTokenTemplate { flash_messages }
 }

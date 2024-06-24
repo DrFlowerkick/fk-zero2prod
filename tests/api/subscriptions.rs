@@ -1,6 +1,6 @@
 //! tests/api/subscriptions.rs
 
-use crate::helpers::{spawn_app, assert_is_redirect_to};
+use crate::helpers::{assert_is_redirect_to, spawn_app};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 use zero2prod::routes::SubscriptionsStatus;
@@ -52,13 +52,15 @@ async fn you_must_set_valid_user_name_to_subscribe() {
         // Assert
         assert_is_redirect_to(&response, "/subscriptions");
 
-        
         // Act - Part 2 - Follow the redirect
         let html_page = test_app.get_subscriptions_html().await;
 
         // Assert
         assert!(
-            html_page.contains(&format!("<p><i>`{}` is not a valid subscriber name.</i></p>", invalid_name)),
+            html_page.contains(&format!(
+                "<p><i>`{}` is not a valid subscriber name.</i></p>",
+                invalid_name
+            )),
             // Additional customized error message on test failure
             "The API did not react with correct html response when payload was {}.",
             test_failing_message
@@ -75,7 +77,11 @@ async fn you_must_set_valid_email_to_subscribe() {
     // therefore we check here only some practical failure modes
     let test_cases = vec![
         ("name=Ursula&email=", "", "empty email"),
-        ("name=Ursula&email=definitely-not-an-email", "definitely-not-an-email", "invalid email"),
+        (
+            "name=Ursula&email=definitely-not-an-email",
+            "definitely-not-an-email",
+            "invalid email",
+        ),
     ];
 
     for (invalid_name_body, invalid_email, test_failing_message) in test_cases {
@@ -85,18 +91,19 @@ async fn you_must_set_valid_email_to_subscribe() {
         // Assert
         assert_is_redirect_to(&response, "/subscriptions");
 
-        
         // Act - Part 2 - Follow the redirect
         let html_page = test_app.get_subscriptions_html().await;
 
         // Assert
         assert!(
-            html_page.contains(&format!("<p><i>`{}` is not a valid subscriber email.</i></p>", invalid_email)),
+            html_page.contains(&format!(
+                "<p><i>`{}` is not a valid subscriber email.</i></p>",
+                invalid_email
+            )),
             // Additional customized error message on test failure
             "The API did not react with correct html response when payload was {}.",
             test_failing_message
         );
-
     }
 }
 
@@ -119,7 +126,6 @@ async fn subscribe_with_valid_form_data() {
     // Assert
     assert_is_redirect_to(&response, "/subscriptions/token");
 
-
     // Act - Part 2 - persist of new subscriber
     // Assert
     let saved = sqlx::query!(
@@ -133,14 +139,12 @@ async fn subscribe_with_valid_form_data() {
     assert_eq!(saved.name, "le guin");
     assert_eq!(saved.status, SubscriptionsStatus::PendingConfirmation);
 
-
     // Act - Part 3 - Get the first intercepted email request
     // Assert
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
     let confirmation_links = test_app.get_confirmation_links(&email_request);
     // The two links should be identical
     assert_eq!(confirmation_links.html, confirmation_links.plain_text);
-
 
     // Mock asserts on drop, that exactly one confirmation email is send
 }
@@ -167,7 +171,7 @@ async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_
     // Assert
     assert_is_redirect_to(&response_first, "/subscriptions/token");
     assert_is_redirect_to(&response_second, "/subscriptions/token");
-    
+
     let confirmation_links_first = test_app.get_confirmation_links(&email_requests[0]);
     let confirmation_links_second = test_app.get_confirmation_links(&email_requests[1]);
     assert_eq!(confirmation_links_first, confirmation_links_second);

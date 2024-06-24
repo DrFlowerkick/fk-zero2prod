@@ -14,7 +14,7 @@ use std::time::Duration;
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::domain::SubscriberEmail;
+use zero2prod::domain::{SubscriberEmail, SubscriberToken};
 use zero2prod::email_client::EmailClient;
 use zero2prod::issue_delivery_worker::{try_execute_task, ExecutionOutcome};
 use zero2prod::routes::NewsletterFormData;
@@ -143,6 +143,15 @@ impl TestApp {
         ConfirmationLinks { html, plain_text }
     }
 
+    /// follow the confirmation link
+    pub async fn click_confirmation_link(&self, confirmation_link: Url) -> reqwest::Response {
+        self.api_client
+            .get(confirmation_link)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
     /// Extract the reciever email from the request to the email API.
     pub fn get_reciever_email(&self, email_request: &wiremock::Request) -> SubscriberEmail {
         // Parse the body as JSON, starting from raw bytes
@@ -219,13 +228,21 @@ impl TestApp {
     }
 
     /// helper to get subscriptions/confirm response
-    pub async fn get_subscriptions_confirm(&self) -> reqwest::Response {
-        self.get_response_from_url("/subscriptions/confirm").await
+    pub async fn get_subscriptions_confirm(&self, token: SubscriberToken) -> reqwest::Response {
+        self.get_response_from_url(&format!(
+            "/subscriptions/confirm?subscription_token={}",
+            token.as_ref()
+        ))
+        .await
     }
 
     /// helper to get subscriptions/confirm html
-    pub async fn get_subscriptions_confirm_html(&self) -> String {
-        self.get_subscriptions_confirm().await.text().await.unwrap()
+    pub async fn get_subscriptions_confirm_html(&self, token: SubscriberToken) -> String {
+        self.get_subscriptions_confirm(token)
+            .await
+            .text()
+            .await
+            .unwrap()
     }
 
     /// helper to get admin dashboard
