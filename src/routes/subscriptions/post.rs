@@ -1,4 +1,4 @@
-//! src/routes/subscriptions.rs
+//! src/routes/subscriptions/post.rs
 
 // required for source()
 use std::error::Error as StdError;
@@ -17,6 +17,7 @@ use crate::email_client::EmailClient;
 use crate::error::{Error, Z2PResult};
 use crate::routes::SubscriptionsStatus;
 use crate::startup::ApplicationBaseUrl;
+use crate::utils::see_other;
 
 /// Checks if err results from trying to subscribe the same email twice
 fn is_email_subscribed_twice_err(err: &Error) -> bool {
@@ -70,7 +71,8 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
 ) -> Z2PResult<HttpResponse> {
-    let new_subscriber = form.0.try_into()?;
+    let new_subscriber = form.0.try_into();
+    let new_subscriber = new_subscriber?;
     let subscription_token = match subscribe_transaction(&new_subscriber, pool.as_ref()).await {
         Ok(new_subscription_token) => new_subscription_token,
         Err(err) => {
@@ -79,14 +81,22 @@ pub async fn subscribe(
                 let subscriber_id =
                     get_subscriber_id_from_email(pool.as_ref(), &new_subscriber).await?;
                 // existing subscriber, check if status is confirmed
-                if get_status_from_subscriber_id(pool.as_ref(), subscriber_id).await?
-                    == SubscriptionsStatus::Confirmed
-                {
-                    // new subscriber is already confirmed
-                    return Ok(HttpResponse::Ok().finish());
+                match get_status_from_subscriber_id(pool.as_ref(), subscriber_id).await? {
+                    SubscriptionsStatus::Confirmed => {
+                        // new subscriber is already confirmed
+                        // grab token of existing subscriber with id
+                        let token =
+                            get_token_from_subscriber_id(pool.as_ref(), subscriber_id).await?;
+                        return Ok(see_other(&format!(
+                            "/subscriptions/confirm?subscription_token={}",
+                            token.as_ref()
+                        )));
+                    }
+                    SubscriptionsStatus::PendingConfirmation => {
+                        // grab token of existing subscriber with id
+                        get_token_from_subscriber_id(pool.as_ref(), subscriber_id).await?
+                    }
                 }
-                // grab token of existing subscriber
-                fetch_token_of_subscriber(&new_subscriber, pool.as_ref()).await?
             } else {
                 return Err(err);
             }
@@ -99,7 +109,7 @@ pub async fn subscribe(
         &subscription_token,
     )
     .await?;
-    Ok(HttpResponse::Ok().finish())
+    Ok(see_other("/subscriptions/token"))
 }
 
 #[tracing::instrument(
@@ -126,21 +136,6 @@ pub async fn subscribe_transaction(
         .await
         .context("Failed to commit SQL transaction to store a new subscriber.")?;
     // return transaction token
-    Ok(subscription_token)
-}
-
-#[tracing::instrument(
-    name = "Fetching subscription token of subscriber from the database.",
-    skip(subscriber, pool)
-)]
-pub async fn fetch_token_of_subscriber(
-    subscriber: &NewSubscriber,
-    pool: &PgPool,
-) -> Z2PResult<SubscriberToken> {
-    // get uuid from subscription table with email
-    let subscriber_id = get_subscriber_id_from_email(pool, subscriber).await?;
-    // 2. get subscription token with uuid
-    let subscription_token = get_token_from_subscriber_id(pool, subscriber_id).await?;
     Ok(subscription_token)
 }
 

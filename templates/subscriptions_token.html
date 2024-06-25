@@ -1,0 +1,29 @@
+<!-- /templates/subscriptions_token.html -->
+{% extends "base.html" %}
+
+{% block title %}Enter token for subscribtion{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+    {% if flash_messages.len() == 0 %}
+        <p>No flash messages.</p>
+    {% endif %}
+    {% for message in flash_messages %}
+        <p><i>{{message|e}}</i></p>
+    {% endfor %}
+    <p>Please enter your subscription token or click on the confirmation link provided to you via email.</p>
+    <form action="/subscriptions/confirm" method="get">
+        <label>Token
+            <input
+                type="text"
+                placeholder="Enter your token"
+                name="subscription_token"
+            >
+        </label>
+        <br>
+        <button type="submit">Submit token</button>
+    </form>
+    <p><a href="/subscriptions">&lt;- Back</a></p>
+{% endblock %}
