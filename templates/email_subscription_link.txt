@@ -1,0 +1,6 @@
+Newsletter Confirmation
+
+Hello, {{ name }}!
+
+Please confirm your subscription by clicking the link below:
+{{ confirmation_link }}
