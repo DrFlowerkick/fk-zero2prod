@@ -20,7 +20,7 @@
             >
         </label>
         <br>
-        <p>The text content is preceded by a {{ "Hello subscriber-name,\n" | escape }}.</p>
+        <p>The text content is preceded by a "Hello subscriber-name,\n".</p>
         <br>
         <label>Context as text
             <input
@@ -31,7 +31,7 @@
         </label>
         <br>
         <p>Html contecnt is placed in a body-statement.</p>
-        <p>The Html content is preceded by a {{ "<p>Hello subscriber-name,</p>" | escape }}.</p>
+        <p>The Html content is preceded by a {{ "<p>Hello subscriber-name,</p>"|e }}.</p>
         <br>
         <label>Content as Html
             <input

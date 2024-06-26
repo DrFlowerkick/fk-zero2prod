@@ -131,7 +131,7 @@ pub async fn try_execute_task(
                 error.cause_chain = ?e,
                 error.message = %e,
                 "Skipping a confirmed subscriber. \
-                Thier stored contact details are unvalid.",
+                Thier stored contact details are invalid.",
             );
             update_issue_delivery_failure(pool, issue_id).await?;
             delete_task(transaction, issue_id, &email).await?;
