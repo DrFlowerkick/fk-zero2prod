@@ -1,9 +1,14 @@
 //! src/issue_delivery_worker.rs
 
 use crate::{
-    configuration::Settings, domain::SubscriberEmail, email_client::EmailClient, error::Z2PResult,
+    configuration::Settings,
+    email_client::EmailClient,
+    error::{Error, Z2PResult},
+    routes::get_subscriber_from_subscriber_id,
     startup::get_connection_pool,
 };
+use anyhow::Context;
+use askama::Template;
 use chrono::{DateTime, Utc};
 use sqlx::{Executor, PgPool, Postgres, Row, Transaction};
 use std::time::Duration;
@@ -61,6 +66,22 @@ pub enum ExecutionOutcome {
     PostponedTasks,
 }
 
+#[derive(Template)]
+#[template(path = "email_newsletter.html")]
+struct EmailHtmlTemplate<'a> {
+    title: &'a str,
+    name: &'a str,
+    content: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "email_newsletter.txt")]
+struct EmailTextTemplate<'a> {
+    title: &'a str,
+    name: &'a str,
+    content: &'a str,
+}
+
 #[tracing::instrument(
     skip_all,
     fields(
@@ -82,20 +103,30 @@ pub async fn try_execute_task(
             return Ok(ExecutionOutcome::PostponedTasks);
         }
     }
-    let (transaction, issue_id, email, n_retries, execute_after) = task.unwrap();
-    Span::current()
-        .record("newsletter_issue_id", &display(issue_id))
-        .record("subscriber_email", &display(&email));
-    match SubscriberEmail::parse(email.clone()) {
-        Ok(parsed_email) => {
+    let (transaction, issue_id, user_id, n_retries, execute_after) = task.unwrap();
+    Span::current().record("newsletter_issue_id", &display(issue_id));
+    match get_subscriber_from_subscriber_id(pool, user_id).await {
+        Ok((parsed_name, parsed_email, _)) => {
+            Span::current()
+                .record("subscriber_name", &display(parsed_name.as_ref()))
+                .record("subscriber_email", &display(parsed_email.as_ref()));
             let issue = get_issue(pool, issue_id).await?;
+            let plain_body = EmailTextTemplate {
+                title: &issue.title,
+                name: parsed_name.as_ref(),
+                content: &issue.text_content,
+            }
+            .render()
+            .context("Failed to render html body.")?;
+            let html_body = EmailHtmlTemplate {
+                title: &issue.title,
+                name: parsed_name.as_ref(),
+                content: &issue.html_content,
+            }
+            .render()
+            .context("Failed to render html body.")?;
             if let Err(e) = email_client
-                .send_email(
-                    &parsed_email,
-                    &issue.title,
-                    &issue.html_content,
-                    &issue.text_content,
-                )
+                .send_email(&parsed_email, &issue.title, &html_body, &plain_body)
                 .await
             {
                 if n_retries >= max_retries {
@@ -105,7 +136,7 @@ pub async fn try_execute_task(
                         "Failed to deliver issue to a confirmed subscriber. Skipping.",
                     );
                     update_issue_delivery_failure(pool, issue_id).await?;
-                    delete_task(transaction, issue_id, &email).await?;
+                    delete_task(transaction, issue_id, user_id).await?;
                 } else {
                     let update_execute_after_timestamp = execute_after
                         .checked_add_signed(time_delta)
@@ -113,7 +144,7 @@ pub async fn try_execute_task(
                     update_execute_after_of_task(
                         transaction,
                         issue_id,
-                        &email,
+                        user_id,
                         n_retries,
                         update_execute_after_timestamp,
                     )
@@ -121,10 +152,10 @@ pub async fn try_execute_task(
                 }
             } else {
                 update_issue_delivery_success(pool, issue_id).await?;
-                delete_task(transaction, issue_id, &email).await?;
+                delete_task(transaction, issue_id, user_id).await?;
             }
         }
-        Err(e) => {
+        Err(Error::SubscriptionError(e)) => {
             // ValidationError is fatal and cannot be recoverd.
             // Task is completed.
             tracing::error!(
@@ -134,21 +165,26 @@ pub async fn try_execute_task(
                 Thier stored contact details are invalid.",
             );
             update_issue_delivery_failure(pool, issue_id).await?;
-            delete_task(transaction, issue_id, &email).await?;
+            delete_task(transaction, issue_id, user_id).await?;
+        }
+
+        Err(e) => {
+            // unexpected transient err
+            Err(e)?;
         }
     }
     Ok(ExecutionOutcome::TaskCompleted)
 }
 
 type PgTransaction = Transaction<'static, Postgres>;
-type TaskData = (PgTransaction, Uuid, String, u8, DateTime<Utc>);
+type TaskData = (PgTransaction, Uuid, Uuid, u8, DateTime<Utc>);
 
 #[tracing::instrument(skip_all)]
 async fn dequeue_task(pool: &PgPool) -> Result<Option<TaskData>, anyhow::Error> {
     let mut transaction: PgTransaction = pool.begin().await?;
     let query = sqlx::query!(
         r#"
-        SELECT newsletter_issue_id, subscriber_email, n_retries, execute_after
+        SELECT newsletter_issue_id, user_id, n_retries, execute_after
         FROM issue_delivery_queue
         WHERE NOW() > execute_after
         FOR UPDATE
@@ -165,7 +201,7 @@ async fn dequeue_task(pool: &PgPool) -> Result<Option<TaskData>, anyhow::Error> 
         Ok(Some((
             transaction,
             r.try_get("newsletter_issue_id")?,
-            r.try_get("subscriber_email")?,
+            r.try_get("user_id")?,
             n_retries as u8,
             r.try_get("execute_after")?,
         )))
@@ -193,17 +229,17 @@ async fn is_task_queue_empty(pool: &PgPool) -> Result<bool, anyhow::Error> {
 async fn delete_task(
     mut transaction: PgTransaction,
     issue_id: Uuid,
-    email: &str,
+    user_id: Uuid,
 ) -> Result<(), anyhow::Error> {
     let query = sqlx::query!(
         r#"
         DELETE FROM issue_delivery_queue
         WHERE
             newsletter_issue_id = $1 AND
-            subscriber_email = $2
+            user_id = $2
         "#,
         issue_id,
-        email
+        user_id
     );
     transaction.execute(query).await?;
     transaction.commit().await?;
@@ -214,7 +250,7 @@ async fn delete_task(
 async fn update_execute_after_of_task(
     mut transaction: PgTransaction,
     issue_id: Uuid,
-    email: &str,
+    user_id: Uuid,
     n_retries: u8,
     update_execute_after_timestamp: DateTime<Utc>,
 ) -> Result<(), anyhow::Error> {
@@ -226,10 +262,10 @@ async fn update_execute_after_of_task(
             execute_after = $4
         WHERE
             newsletter_issue_id = $1 AND
-            subscriber_email = $2
+            user_id = $2
         "#,
         issue_id,
-        email,
+        user_id,
         (n_retries + 1) as i16,
         update_execute_after_timestamp
     );

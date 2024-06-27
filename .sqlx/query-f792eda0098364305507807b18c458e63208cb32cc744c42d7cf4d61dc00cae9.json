@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO issue_delivery_queue (\n            newsletter_issue_id,\n            subscriber_email,\n            n_retries,\n            execute_after\n        )\n        SELECT $1, email, 0, NOW()\n        FROM subscriptions\n        WHERE status = $2\n        ",
+  "query": "\n        INSERT INTO issue_delivery_queue (\n            newsletter_issue_id,\n            user_id,\n            n_retries,\n            execute_after\n        )\n        SELECT $1, id, 0, NOW()\n        FROM subscriptions\n        WHERE status = $2\n        ",
   "describe": {
     "columns": [],
     "parameters": {
@@ -21,5 +21,5 @@
     },
     "nullable": []
   },
-  "hash": "1555c959c7a70775756f6daa5544aa41d33a14b52e340be2d752a12e2293d59d"
+  "hash": "f792eda0098364305507807b18c458e63208cb32cc744c42d7cf4d61dc00cae9"
 }

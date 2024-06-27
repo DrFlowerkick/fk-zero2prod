@@ -5,11 +5,11 @@ use std::error::Error as StdError;
 
 use actix_web::{web, HttpResponse};
 use anyhow::Context;
+use askama::Template;
 use chrono::Utc;
 use sqlx::postgres::PgDatabaseError;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
 use uuid::Uuid;
-use askama::Template;
 
 use crate::domain::{
     NewSubscriber, SubscriberEmail, SubscriberName, SubscriberToken, ValidationError,
@@ -220,12 +220,14 @@ pub async fn send_confirmation_email(
     let plain_body = EmailTextTemplate {
         name: new_subscriber.name.as_ref(),
         confirmation_link: &confirmation_link,
-    }.render()
+    }
+    .render()
     .context("Failed to render html body.")?;
     let html_body = EmailHtmlTemplate {
         name: new_subscriber.name.as_ref(),
         confirmation_link: &confirmation_link,
-    }.render()
+    }
+    .render()
     .context("Failed to render html body.")?;
     email_client
         .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)

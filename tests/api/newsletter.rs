@@ -57,7 +57,9 @@ pub fn when_sending_an_email() -> MockBuilder {
 }
 
 /// Use the public API of the application under test to create an unconfirmed subscriber
-async fn create_unconfirmed_subscriber(app: &TestApp) -> (SubscriberEmail, SubscriberName, ConfirmationLinks) {
+async fn create_unconfirmed_subscriber(
+    app: &TestApp,
+) -> (SubscriberEmail, SubscriberName, ConfirmationLinks) {
     // We support working with multiple subscribers,
     // thier details must be randomized to avoid conflicts.
     let name: String = Name().fake();
@@ -140,7 +142,7 @@ async fn make_valid_subscriber_name_invalid(app: &TestApp, name: SubscriberName)
     .await
     .unwrap()
     .id;
-    // make invalid by appending 
+    // make invalid by appending
     let invalid_name = name.as_ref().to_owned() + "()<>";
     sqlx::query!(
         r#"UPDATE subscriptions SET name = $1 WHERE id = $2"#,

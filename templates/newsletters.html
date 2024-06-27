@@ -20,7 +20,10 @@
             >
         </label>
         <br>
-        <p>The text content is preceded by a "Hello subscriber-name,\n".</p>
+        <p>
+            The text content is preceded by a<br \>
+            "Newsletter title\n\n"<br \>
+            "Hello subscriber-name,\n\n".</p>
         <br>
         <label>Context as text
             <input
@@ -31,7 +34,11 @@
         </label>
         <br>
         <p>Html contecnt is placed in a body-statement.</p>
-        <p>The Html content is preceded by a {{ "<p>Hello subscriber-name,</p>"|e }}.</p>
+        <p>
+            The Html content is preceded by<br />
+            {{ "<h1>Newsletter title</h1>"|e}}<br />
+            {{ "<p>Hello subscriber-name!</p>"|e }}.
+        </p>
         <br>
         <label>Content as Html
             <input
