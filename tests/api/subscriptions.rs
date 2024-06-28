@@ -142,16 +142,18 @@ async fn subscribe_with_valid_form_data() {
     // Act - Part 3 - Get the first intercepted email request
     // Assert
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = test_app.get_confirmation_links(&email_request);
+    let email_links = test_app.get_email_links(&email_request);
     // The two links should be identical
-    assert_eq!(confirmation_links.html, confirmation_links.plain_text);
+    assert_eq!(
+        email_links.html.confirmation.unwrap(),
+        email_links.plain_text.confirmation.unwrap()
+    );
 
     // Mock asserts on drop, that exactly one confirmation email is send
 }
 
 #[tokio::test]
-async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_links_and_recievers(
-) {
+async fn subscribing_twice_sends_two_confirmation_emails_with_same_email_links_and_recievers() {
     // Arrange
     let test_app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -172,9 +174,9 @@ async fn subscribing_twice_sends_two_confirmation_emails_with_same_confirmation_
     assert_is_redirect_to(&response_first, "/subscriptions/token");
     assert_is_redirect_to(&response_second, "/subscriptions/token");
 
-    let confirmation_links_first = test_app.get_confirmation_links(&email_requests[0]);
-    let confirmation_links_second = test_app.get_confirmation_links(&email_requests[1]);
-    assert_eq!(confirmation_links_first, confirmation_links_second);
+    let email_links_first = test_app.get_email_links(&email_requests[0]);
+    let email_links_second = test_app.get_email_links(&email_requests[1]);
+    assert_eq!(email_links_first, email_links_second);
     let reciever_email_first = test_app.get_reciever_email(&email_requests[0]);
     let reciever_email_second = test_app.get_reciever_email(&email_requests[1]);
     assert_eq!(

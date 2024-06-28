@@ -1,6 +1,6 @@
 //! tests/api/newsletter.rs
 
-use crate::helpers::{assert_is_redirect_to, spawn_app, ConfirmationLinks, TestApp};
+use crate::helpers::{assert_is_redirect_to, spawn_app, SubscriberLinks, TestApp};
 use fake::{
     faker::{internet::en::SafeEmail, name::en::Name},
     Fake,
@@ -59,7 +59,7 @@ pub fn when_sending_an_email() -> MockBuilder {
 /// Use the public API of the application under test to create an unconfirmed subscriber
 async fn create_unconfirmed_subscriber(
     app: &TestApp,
-) -> (SubscriberEmail, SubscriberName, ConfirmationLinks) {
+) -> (SubscriberEmail, SubscriberName, SubscriberLinks) {
     // We support working with multiple subscribers,
     // thier details must be randomized to avoid conflicts.
     let name: String = Name().fake();
@@ -93,14 +93,14 @@ async fn create_unconfirmed_subscriber(
         .unwrap()
         .pop()
         .unwrap();
-    (email, name, app.get_confirmation_links(email_request))
+    (email, name, app.get_email_links(email_request))
 }
 
 pub async fn create_confirmed_subscriber(app: &TestApp) -> (SubscriberEmail, SubscriberName) {
     // We can reuse the same helper and just add
     // an extra step to actually call the confirmation link!
     let (email, name, confirmation_link) = create_unconfirmed_subscriber(app).await;
-    reqwest::get(confirmation_link.html)
+    reqwest::get(confirmation_link.html.confirmation.unwrap())
         .await
         .unwrap()
         .error_for_status()

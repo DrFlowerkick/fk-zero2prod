@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn a_valid_name_is_parsed_succesfully() {
+    fn a_valid_name_is_parsed_successfully() {
         let name = "Ursula Le Guin".to_string();
         assert_ok!(SubscriberName::parse(name));
     }

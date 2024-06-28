@@ -119,34 +119,53 @@ impl TestApp {
     }
 
     /// Extract the confirmation links embedded in the request to the email API.
-    pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
+    pub fn get_email_links(&self, email_request: &wiremock::Request) -> SubscriberLinks {
         // Parse the body as JSON, starting from raw bytes
         let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
         // Extract the link from one of the request fields.
         let get_link = |s: &str| {
-            let links: Vec<_> = linkify::LinkFinder::new()
+            let confirmation_links: Vec<reqwest::Url> = linkify::LinkFinder::new()
                 .links(s)
                 .filter(|l| *l.kind() == linkify::LinkKind::Url)
+                .map(|l| reqwest::Url::parse(l.as_str()).unwrap())
+                .filter(|l| l.path() == "/subscription/confirm")
                 .collect();
-            assert_eq!(links.len(), 1);
-            let raw_link = links[0].as_str().to_owned();
-            let mut confirmation_link = reqwest::Url::parse(&raw_link).unwrap();
-            // Let's make sure we don't call random APIs on the web
-            assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
-            // Let's rewrite the URL to include the port
-            confirmation_link.set_port(Some(self.port)).unwrap();
-            confirmation_link
+            let unsubscribe_links: Vec<reqwest::Url> = linkify::LinkFinder::new()
+                .links(s)
+                .filter(|l| *l.kind() == linkify::LinkKind::Url)
+                .map(|l| reqwest::Url::parse(l.as_str()).unwrap())
+                .filter(|l| l.path() == "/subscription/unsubscribe")
+                .collect();
+            assert_eq!(unsubscribe_links.len(), 1);
+            assert!(confirmation_links.len() <= 1);
+            let link_transform = |mut l: Url| {
+                // Let's make sure we don't call random APIs on the web
+                assert_eq!(l.host_str().unwrap(), "127.0.0.1");
+                // Let's rewrite the URL to include the port
+                l.set_port(Some(self.port)).unwrap();
+                l
+            };
+            let confirmation = if confirmation_links.len() == 1 {
+                Some(link_transform(confirmation_links[0].clone()))
+            } else {
+                None
+            };
+            let unsubscribe = link_transform(unsubscribe_links[0].clone());
+            EmailLinks {
+                confirmation,
+                unsubscribe,
+            }
         };
 
         let html = get_link(&body["HtmlBody"].as_str().unwrap());
         let plain_text = get_link(&body["TextBody"].as_str().unwrap());
-        ConfirmationLinks { html, plain_text }
+        SubscriberLinks { html, plain_text }
     }
 
-    /// follow the confirmation link
-    pub async fn click_confirmation_link(&self, confirmation_link: Url) -> reqwest::Response {
+    /// follow a email link
+    pub async fn click_email_link(&self, email_link: Url) -> reqwest::Response {
         self.api_client
-            .get(confirmation_link)
+            .get(email_link)
             .send()
             .await
             .expect("Failed to execute request.")
@@ -390,6 +409,34 @@ impl TestApp {
             .await
             .unwrap()
     }
+
+    pub async fn subscribe_and_confirm_a_user(&self) -> Url {
+        let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+        self.post_subscriptions(body.into()).await;
+        let email_request = &self.email_server.received_requests().await.unwrap()[0];
+        let email_links = self.get_email_links(email_request);
+        self.click_email_link(email_links.html.confirmation.unwrap())
+            .await
+            .error_for_status()
+            .unwrap();
+        // unsubscribe links should be equal
+        assert_eq!(
+            email_links.html.unsubscribe,
+            email_links.plain_text.unsubscribe
+        );
+        email_links.html.unsubscribe
+    }
+
+    pub async fn num_rows_of_table(&self, table_name: &str) -> i64 {
+        // Prepare the query to count rows in the specified table
+        let query = format!("SELECT COUNT(*) as count FROM {}", table_name);
+
+        // Execute the query
+        let row = sqlx::query(&query).fetch_one(&self.db_pool).await.unwrap();
+
+        // Extract the count from the row
+        row.get("count")
+    }
 }
 
 // Little helper function to assert redirected location
@@ -505,9 +552,16 @@ async fn cleanup_db() -> Result<(), Error> {
     Ok(())
 }
 
-/// Confirmation links embedded in the rquest to the email API.
+/// Confirmation and unsubscribe links embedded in the request to the email API.
 #[derive(PartialEq, Eq, Debug)]
-pub struct ConfirmationLinks {
-    pub html: reqwest::Url,
-    pub plain_text: reqwest::Url,
+pub struct EmailLinks {
+    pub confirmation: Option<reqwest::Url>,
+    pub unsubscribe: reqwest::Url,
+}
+
+/// Links embedded in the request to the email API in Html and text of email.
+#[derive(PartialEq, Eq, Debug)]
+pub struct SubscriberLinks {
+    pub html: EmailLinks,
+    pub plain_text: EmailLinks,
 }

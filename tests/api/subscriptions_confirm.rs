@@ -52,7 +52,7 @@ async fn confirmation_link_with_empty_or_invalid_or_not_existing_token_redirects
         let confirmation_link = reqwest::Url::parse(&confirmation_link).unwrap();
 
         // Act - Part 1 - get confirmation link
-        let response = test_app.click_confirmation_link(confirmation_link).await;
+        let response = test_app.click_email_link(confirmation_link).await;
 
         // Assert
         assert_is_redirect_to(&response, "/subscriptions/token");
@@ -87,11 +87,15 @@ async fn the_confirmation_link_returns_a_confirmation_message_if_called_first() 
 
     test_app.post_subscriptions(body.into()).await;
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = test_app.get_confirmation_links(&email_request);
+    let confirmation_link = test_app
+        .get_email_links(&email_request)
+        .html
+        .confirmation
+        .unwrap();
 
     // Act - Part 1 - get confirmation link
     let response = test_app
-        .click_confirmation_link(confirmation_links.html)
+        .click_email_link(confirmation_link)
         .await
         .error_for_status()
         .unwrap();
@@ -103,7 +107,7 @@ async fn the_confirmation_link_returns_a_confirmation_message_if_called_first() 
     let html_page = response.text().await.unwrap();
 
     assert!(html_page.contains(
-        "<p><i>Welcome `le guin`. You have succesfully subscribed to our newsletter!</i></p>"
+        "<p><i>Welcome `le guin`. You have successfully subscribed to our newsletter!</i></p>"
     ));
 }
 
@@ -121,11 +125,15 @@ async fn clicking_on_the_confirmation_link_persists_a_subscriber() {
 
     test_app.post_subscriptions(body.into()).await;
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = test_app.get_confirmation_links(&email_request);
+    let confirmation_link = test_app
+        .get_email_links(&email_request)
+        .html
+        .confirmation
+        .unwrap();
 
     // Act
     test_app
-        .click_confirmation_link(confirmation_links.html)
+        .click_email_link(confirmation_link)
         .await
         .error_for_status()
         .unwrap();
@@ -157,16 +165,20 @@ async fn the_confirmation_link_returns_a_welcome_back_message_if_called_twice_or
 
     test_app.post_subscriptions(body.into()).await;
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = test_app.get_confirmation_links(&email_request);
+    let confirmation_link = test_app
+        .get_email_links(&email_request)
+        .html
+        .confirmation
+        .unwrap();
 
     // Act - Part 1 - get conformation link twice
     test_app
-        .click_confirmation_link(confirmation_links.html.clone())
+        .click_email_link(confirmation_link.clone())
         .await
         .error_for_status()
         .unwrap();
     let response = test_app
-        .click_confirmation_link(confirmation_links.html)
+        .click_email_link(confirmation_link)
         .await
         .error_for_status()
         .unwrap();
@@ -195,9 +207,13 @@ async fn subscribing_an_already_confirmed_email_redirects_directly_to_confirm_pa
 
     test_app.post_subscriptions(body.into()).await;
     let email_request = &test_app.email_server.received_requests().await.unwrap()[0];
-    let confirmation_links = test_app.get_confirmation_links(&email_request);
+    let confirmation_link = test_app
+        .get_email_links(&email_request)
+        .html
+        .confirmation
+        .unwrap();
     test_app
-        .click_confirmation_link(confirmation_links.html)
+        .click_email_link(confirmation_link)
         .await
         .error_for_status()
         .unwrap();
