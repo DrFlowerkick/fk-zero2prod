@@ -103,7 +103,7 @@ async fn unsubscribing_returns_a_confirmation_message() {
 }
 
 #[tokio::test]
-async fn clicking_on_the_confirmation_link_persists_a_subscriber() {
+async fn clicking_on_the_unsubscribe_link_removes_subscriber_from_db() {
     // Arrange
     let test_app = spawn_app().await;
 
@@ -131,3 +131,5 @@ async fn clicking_on_the_confirmation_link_persists_a_subscriber() {
     assert_eq!(test_app.num_rows_of_table("subscriptions").await, 0);
     assert_eq!(test_app.num_rows_of_table("subscription_tokens").await, 0);
 }
+
+// ToDo: add test to check that Newsletter email contains an unsubscribe link to newsletter

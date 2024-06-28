@@ -4,3 +4,6 @@ Hello {{ name }}!
 
 Please confirm your subscription by clicking the link below:
 {{ confirmation_link }}
+
+To unsubscribe click the link below:
+{{ unsubscribe_link }}

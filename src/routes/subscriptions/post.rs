@@ -192,6 +192,7 @@ pub async fn store_token(
 struct EmailHtmlTemplate<'a> {
     name: &'a str,
     confirmation_link: &'a str,
+    unsubscribe_link: &'a str,
 }
 
 #[derive(Template)]
@@ -199,6 +200,7 @@ struct EmailHtmlTemplate<'a> {
 struct EmailTextTemplate<'a> {
     name: &'a str,
     confirmation_link: &'a str,
+    unsubscribe_link: &'a str,
 }
 
 #[tracing::instrument(
@@ -211,21 +213,29 @@ pub async fn send_confirmation_email(
     base_url: &str,
     subscription_token: &SubscriberToken,
 ) -> Z2PResult<()> {
-    // We create a (useless) confirmation link
+    // We create a confirmation link
     let confirmation_link = format!(
         "{}/subscriptions/confirm?subscription_token={}",
+        base_url,
+        subscription_token.as_ref()
+    );
+    // We create a unsubscribe link
+    let unsubscribe_link = format!(
+        "{}/subscriptions/unsubscribe?subscription_token={}",
         base_url,
         subscription_token.as_ref()
     );
     let plain_body = EmailTextTemplate {
         name: new_subscriber.name.as_ref(),
         confirmation_link: &confirmation_link,
+        unsubscribe_link: &unsubscribe_link,
     }
     .render()
     .context("Failed to render html body.")?;
     let html_body = EmailHtmlTemplate {
         name: new_subscriber.name.as_ref(),
         confirmation_link: &confirmation_link,
+        unsubscribe_link: &unsubscribe_link,
     }
     .render()
     .context("Failed to render html body.")?;

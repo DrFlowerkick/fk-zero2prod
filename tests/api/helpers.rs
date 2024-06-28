@@ -128,13 +128,13 @@ impl TestApp {
                 .links(s)
                 .filter(|l| *l.kind() == linkify::LinkKind::Url)
                 .map(|l| reqwest::Url::parse(l.as_str()).unwrap())
-                .filter(|l| l.path() == "/subscription/confirm")
+                .filter(|l| l.path() == "/subscriptions/confirm")
                 .collect();
             let unsubscribe_links: Vec<reqwest::Url> = linkify::LinkFinder::new()
                 .links(s)
                 .filter(|l| *l.kind() == linkify::LinkKind::Url)
                 .map(|l| reqwest::Url::parse(l.as_str()).unwrap())
-                .filter(|l| l.path() == "/subscription/unsubscribe")
+                .filter(|l| l.path() == "/subscriptions/unsubscribe")
                 .collect();
             assert_eq!(unsubscribe_links.len(), 1);
             assert!(confirmation_links.len() <= 1);
