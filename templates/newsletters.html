@@ -21,9 +21,12 @@
         </label>
         <br>
         <p>
-            The text content is preceded by a<br \>
-            "Newsletter title\n\n"<br \>
-            "Hello subscriber-name,\n\n".</p>
+            The plain text newsletter is structure as follows<br />
+            Newsletter title\n\n<br />
+            Hello subscriber-name,\n\n<br />
+            text_content\n\n<br />
+            To unsubscribe click the link below:<br />
+            unsubscribe_link</p>
         <br>
         <label>Context as text
             <input
@@ -35,9 +38,13 @@
         <br>
         <p>Html contecnt is placed in a body-statement.</p>
         <p>
-            The Html content is preceded by<br />
-            {{ "<h1>Newsletter title</h1>"|e}}<br />
-            {{ "<p>Hello subscriber-name!</p>"|e }}.
+            The Html newsletter is structure as follows<br />
+            {{ "<h1>Newsletter title</h1>"|e }}<br />
+            {{ "<p>Hello subscriber-name!</p>"|e }}<br />
+            html_content<br />
+            {{ "<h2>Unsubscribe</h2>"|e }}<br />
+            {{ "<p>To unsubscribe click the link below:</p>"|e }}<br />
+            {{ "<a href=\"unsubscribe_link\">Unsubscribe from newsletter</a>"|e }}
         </p>
         <br>
         <label>Content as Html

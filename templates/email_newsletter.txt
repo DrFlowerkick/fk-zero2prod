@@ -3,3 +3,6 @@
 Hello {{ name }}!
 
 {{ content }}
+
+To unsubscribe click the link below:
+{{ unsubscribe_link }}

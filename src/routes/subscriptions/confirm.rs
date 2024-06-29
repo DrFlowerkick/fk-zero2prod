@@ -40,7 +40,7 @@ pub async fn confirm(
         ))?,
         Some(subscriber_id) => {
             let new_subscription = confirm_subscriber(&pool, subscriber_id).await?;
-            let (name, email, subscribed_at) =
+            let (name, email, _, subscribed_at) =
                 get_subscriber_from_subscriber_id(&pool, subscriber_id).await?;
             Ok(SubscriptionsTokenTemplate {
                 new_subscription,
@@ -98,7 +98,12 @@ async fn get_subscriber_id_from_token(
 pub async fn get_subscriber_from_subscriber_id(
     pool: &PgPool,
     subscriber_id: Uuid,
-) -> Z2PResult<(SubscriberName, SubscriberEmail, DateTime<Utc>)> {
+) -> Z2PResult<(
+    SubscriberName,
+    SubscriberEmail,
+    SubscriberToken,
+    DateTime<Utc>,
+)> {
     let result = sqlx::query!(
         "SELECT email, name, subscribed_at FROM subscriptions
         WHERE id = $1",
@@ -106,10 +111,19 @@ pub async fn get_subscriber_from_subscriber_id(
     )
     .fetch_one(pool)
     .await
-    .context("Failed to read subscriber_id of subscription_token from database.")?;
+    .context("Failed to read subscriber data of subscription_id from database.")?;
+    let token = sqlx::query!(
+        "SELECT subscription_token FROM subscription_tokens
+        WHERE subscriber_id = $1",
+        subscriber_id,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to read subscriber token of subscription_id from database.")?;
     Ok((
         SubscriberName::parse(result.name)?,
         SubscriberEmail::parse(result.email)?,
+        SubscriberToken::parse(token.subscription_token)?,
         result.subscribed_at,
     ))
 }

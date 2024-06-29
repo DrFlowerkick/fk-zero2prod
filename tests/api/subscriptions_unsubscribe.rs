@@ -131,5 +131,3 @@ async fn clicking_on_the_unsubscribe_link_removes_subscriber_from_db() {
     assert_eq!(test_app.num_rows_of_table("subscriptions").await, 0);
     assert_eq!(test_app.num_rows_of_table("subscription_tokens").await, 0);
 }
-
-// ToDo: add test to check that Newsletter email contains an unsubscribe link to newsletter

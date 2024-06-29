@@ -303,6 +303,25 @@ async fn newsletters_are_delivered_to_confirmed_subscribers_only() {
     );
     assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(0));
 
+    // Assert newsletter email contains no confirmation links and
+    // two identicalunsubscribe links (html and plain_text)
+    // first email (index 0) is confirmation link email
+    // secondemail (index 1) is newsltter email
+    dbg!(&test_app
+        .email_server
+        .received_requests()
+        .await
+        .unwrap()
+        .len());
+    let email_request = &test_app.email_server.received_requests().await.unwrap()[1];
+    let email_links = test_app.get_email_links(&email_request);
+    assert_eq!(email_links.html.confirmation, None);
+    assert_eq!(email_links.plain_text.confirmation, None);
+    assert_eq!(
+        email_links.html.unsubscribe,
+        email_links.plain_text.unsubscribe
+    );
+
     // Mock verifies on Drop that we have sent one newsletter email
 }
 

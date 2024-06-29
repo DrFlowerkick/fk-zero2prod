@@ -325,6 +325,7 @@ impl TestApp {
                 &self.email_client,
                 self.n_retries,
                 self.time_delta,
+                &self.address,
             )
             .await
             .unwrap()
