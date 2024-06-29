@@ -52,10 +52,10 @@ async fn unsubscribing_with_empty_or_invalid_or_not_existing_token_redirects_to_
         let response = test_app.click_email_link(unsubscription_link).await;
 
         // Assert
-        assert_is_redirect_to(&response, "/subscriptions");
+        assert_is_redirect_to(&response, "/subscriptions/token");
 
         // Act - Part 2 - Follow the redirect
-        let html_page = test_app.get_subscriptions_html().await;
+        let html_page = test_app.get_subscriptions_token_html().await;
 
         // Assert
         assert!(
@@ -87,8 +87,8 @@ async fn unsubscribing_returns_a_confirmation_message() {
     let response = test_app
         .click_email_link(unsubscribe_link)
         .await
-        .error_for_status()
-        .unwrap();
+        .error_for_status();
+    let response = response.unwrap();
 
     // Assert
     assert_eq!(response.url().path(), "/subscriptions/unsubscribe");
@@ -98,7 +98,10 @@ async fn unsubscribing_returns_a_confirmation_message() {
 
     // Assert returns confirmation message of unsubscribe
     assert!(html_page.contains(
-        "<p><i>Hello `le guin`. You have successfully unsubscribed from our newsletter!</i></p>"
+        "<p><i>Good bye `le guin`!</i></p>"
+    ));
+    assert!(html_page.contains(
+        "<p>You successfilly unsubscribed <a href=\"mailto:ursula_le_guin@gmail.com\">ursula_le_guin@gmail.com</a>.</p>"
     ));
 }
 

@@ -76,7 +76,7 @@ async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Z2PResult<boo
 }
 
 #[tracing::instrument(name = "Get subscriber_id from token", skip(subscription_token, pool))]
-async fn get_subscriber_id_from_token(
+pub async fn get_subscriber_id_from_token(
     pool: &PgPool,
     subscription_token: &SubscriberToken,
 ) -> Z2PResult<Option<Uuid>> {

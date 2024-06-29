@@ -196,7 +196,7 @@ pub async fn try_execute_task(
     Ok(ExecutionOutcome::TaskCompleted)
 }
 
-type PgTransaction = Transaction<'static, Postgres>;
+pub type PgTransaction = Transaction<'static, Postgres>;
 type TaskData = (PgTransaction, Uuid, Uuid, u8, DateTime<Utc>);
 
 #[tracing::instrument(skip_all)]

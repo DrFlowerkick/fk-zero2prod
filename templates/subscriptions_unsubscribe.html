@@ -1,0 +1,13 @@
+<!-- /templates/subscriptions_unsubscribe.html -->
+{% extends "base.html" %}
+
+{% block title %}Confirmation of unsubscribe{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+    <p><i>Good bye `{{name}}`!</i></p>
+    <p>You successfilly unsubscribed <a href="mailto:{{email}}">{{email}}</a>.</p>
+    <p><a href="/subscriptions">&lt;- Back</a></p>
+{% endblock %}
