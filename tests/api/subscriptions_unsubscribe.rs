@@ -97,9 +97,7 @@ async fn unsubscribing_returns_a_confirmation_message() {
     let html_page = response.text().await.unwrap();
 
     // Assert returns confirmation message of unsubscribe
-    assert!(html_page.contains(
-        "<p><i>Good bye `le guin`!</i></p>"
-    ));
+    assert!(html_page.contains("<p><i>Good bye `le guin`!</i></p>"));
     assert!(html_page.contains(
         "<p>You successfilly unsubscribed <a href=\"mailto:ursula_le_guin@gmail.com\">ursula_le_guin@gmail.com</a>.</p>"
     ));
