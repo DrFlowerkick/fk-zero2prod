@@ -1,0 +1,18 @@
+<!-- /templates/subscriptions_confirm.html -->
+{% extends "base.html" %}
+
+{% block title %}Confirmation of subscribtion{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+    {% if new_subscription %}
+        <p><i>Welcome `{{name}}`. You have successfully subscribed to our newsletter!</i></p>
+    {% else %}
+        <p><i> Welcome back `{{name}}`!</i></p>
+    {% endif %}
+    <p>You subscribed with <a href="mailto:{{email}}">{{email}}</a>.</p>
+    <p>You are subscribed since {{subscribed_at}}.</p>
+    <p><a href="/subscriptions">&lt;- Back</a></p>
+{% endblock %}

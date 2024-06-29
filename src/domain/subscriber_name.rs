@@ -31,7 +31,7 @@ impl SubscriberName {
         let is_too_long = s.graphemes(true).count() > 256;
         // Iterate over all characters in the input `s` to check if any of them
         // matches one of the characters in the forbidden array.
-        let forbidden_characters = ['/', '(', ')', '"', '<', '>', '\\', '{', '}'];
+        let forbidden_characters = ['/', '(', ')', '"', '<', '>', '\\', '{', '}', '[', ']'];
         let contains_forbidden_characters = s.chars().any(|g| forbidden_characters.contains(&g));
         if is_empty_or_whitespace || is_too_long || contains_forbidden_characters {
             Err(ValidationError::InvalidName(s))
@@ -79,7 +79,7 @@ mod tests {
     }
 
     #[test]
-    fn a_valid_name_is_parsed_succesfully() {
+    fn a_valid_name_is_parsed_successfully() {
         let name = "Ursula Le Guin".to_string();
         assert_ok!(SubscriberName::parse(name));
     }

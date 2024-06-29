@@ -30,7 +30,7 @@ pub enum Error {
     LoginError,
     #[error("Failure changing password")]
     PasswordChangingError(#[from] CredentialsError),
-    #[error("Unvalid input for Newsletter")]
+    #[error("Invalid input for Newsletter")]
     NewsletterError(#[from] NewsletterError),
     #[error("Session state error")]
     SessionStateError(#[from] SessionError),
@@ -49,9 +49,17 @@ impl std::fmt::Debug for Error {
 impl From<Error> for actix_web::Error {
     fn from(err: Error) -> Self {
         match err {
-            Error::SubscriptionError(_) | Error::IdempotencyKeyError => {
-                actix_web::error::ErrorBadRequest(err)
+            Error::SubscriptionError(ref valerr) => {
+                FlashMessage::error(valerr.to_string()).send();
+                let response = match valerr {
+                    ValidationError::InvalidEmail(_) | ValidationError::InvalidName(_) => {
+                        see_other("/subscriptions")
+                    }
+                    ValidationError::InvalidToken(_) => see_other("/subscriptions/token"),
+                };
+                actix_web::error::InternalError::from_response(err, response).into()
             }
+            Error::IdempotencyKeyError => actix_web::error::ErrorBadRequest(err),
             Error::LoginError | Error::SessionStateError(_) => {
                 FlashMessage::error(err.to_string()).send();
                 let response = see_other("/login");

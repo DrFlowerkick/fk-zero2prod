@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT newsletter_issue_id, subscriber_email, n_retries, execute_after\n        FROM issue_delivery_queue\n        WHERE NOW() > execute_after\n        FOR UPDATE\n        SKIP LOCKED\n        LIMIT 1\n        ",
+  "query": "\n        SELECT newsletter_issue_id, user_id, n_retries, execute_after\n        FROM issue_delivery_queue\n        WHERE NOW() > execute_after\n        FOR UPDATE\n        SKIP LOCKED\n        LIMIT 1\n        ",
   "describe": {
     "columns": [
       {
@@ -10,8 +10,8 @@
       },
       {
         "ordinal": 1,
-        "name": "subscriber_email",
-        "type_info": "Text"
+        "name": "user_id",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 2,
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "3405e9f86520d7a2e1fcaefdbdde19aab84d7377d806de3e3a5ee463073a68d2"
+  "hash": "b282dd8188b0a49492b2aa8e9a728ce388fe261544bc56a9f931053d7a0df137"
 }

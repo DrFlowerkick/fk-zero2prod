@@ -21,8 +21,8 @@ pub enum CredentialsError {
     PasswordVerifikationFailed(#[from] argon2::password_hash::Error),
     #[error("You entered two different new passwords - the field values must match.")]
     DifferentNewPasswords,
-    #[error("The new password is unvalid.")]
-    UnvalidNewPassword,
+    #[error("The new password is invalid.")]
+    InvalidNewPassword,
     #[error(transparent)]
     UnexpectedError(#[from] anyhow::Error),
 }
@@ -164,7 +164,7 @@ pub async fn check_new_password(
             .chars()
             .any(|c| c.is_ascii_whitespace())
     {
-        return Err(CredentialsError::UnvalidNewPassword);
+        return Err(CredentialsError::InvalidNewPassword);
     }
     Ok(())
 }

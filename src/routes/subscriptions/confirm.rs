@@ -1,10 +1,12 @@
 //! src/routes/subscriptions_confirm.rs
 
-use crate::domain::{SubscriberToken, ValidationError};
+use crate::domain::{SubscriberEmail, SubscriberName, SubscriberToken, ValidationError};
 use crate::error::Z2PResult;
 use crate::routes::get_status_from_subscriber_id;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, Responder};
 use anyhow::Context;
+use askama_actix::Template;
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -15,11 +17,20 @@ pub enum SubscriptionsStatus {
     Confirmed,
 }
 
+#[derive(Template)]
+#[template(path = "subscriptions_confirm.html")]
+struct SubscriptionsTokenTemplate {
+    new_subscription: bool,
+    name: String,
+    email: String,
+    subscribed_at: DateTime<Utc>,
+}
+
 #[tracing::instrument(name = "Confirm a pending subscriber", skip(subscriber_token, pool))]
 pub async fn confirm(
     subscriber_token: web::Query<SubscriberToken>,
     pool: web::Data<PgPool>,
-) -> Z2PResult<HttpResponse> {
+) -> Z2PResult<impl Responder> {
     subscriber_token.is_valid()?;
     let id = get_subscriber_id_from_token(&pool, &subscriber_token).await?;
     match id {
@@ -28,18 +39,21 @@ pub async fn confirm(
             subscriber_token.as_ref().to_owned(),
         ))?,
         Some(subscriber_id) => {
-            if confirm_subscriber(&pool, subscriber_id).await? {
-                Ok(HttpResponse::Ok()
-                    .json("status changed from pending_confirmation to confirmed."))
-            } else {
-                Ok(HttpResponse::Ok().finish())
-            }
+            let new_subscription = confirm_subscriber(&pool, subscriber_id).await?;
+            let (name, email, _, subscribed_at) =
+                get_subscriber_from_subscriber_id(&pool, subscriber_id).await?;
+            Ok(SubscriptionsTokenTemplate {
+                new_subscription,
+                name: name.as_ref().to_owned(),
+                email: email.as_ref().to_owned(),
+                subscribed_at,
+            })
         }
     }
 }
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, pool))]
-pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Z2PResult<bool> {
+async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Z2PResult<bool> {
     // check status of entry with subscriber_id
     match get_status_from_subscriber_id(pool, subscriber_id).await? {
         SubscriptionsStatus::PendingConfirmation => {
@@ -67,7 +81,7 @@ pub async fn get_subscriber_id_from_token(
     subscription_token: &SubscriberToken,
 ) -> Z2PResult<Option<Uuid>> {
     let result = sqlx::query!(
-        "SELECT subscriber_id FROM subscription_tokens \
+        "SELECT subscriber_id FROM subscription_tokens
         WHERE subscription_token = $1",
         subscription_token.as_ref(),
     )
@@ -75,4 +89,41 @@ pub async fn get_subscriber_id_from_token(
     .await
     .context("Failed to read subscriber_id of subscription_token from database.")?;
     Ok(result.map(|r| r.subscriber_id))
+}
+
+#[tracing::instrument(
+    name = "Get name, eamil and subscribed_at from subscriber_id",
+    skip_all
+)]
+pub async fn get_subscriber_from_subscriber_id(
+    pool: &PgPool,
+    subscriber_id: Uuid,
+) -> Z2PResult<(
+    SubscriberName,
+    SubscriberEmail,
+    SubscriberToken,
+    DateTime<Utc>,
+)> {
+    let result = sqlx::query!(
+        "SELECT email, name, subscribed_at FROM subscriptions
+        WHERE id = $1",
+        subscriber_id,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to read subscriber data of subscription_id from database.")?;
+    let token = sqlx::query!(
+        "SELECT subscription_token FROM subscription_tokens
+        WHERE subscriber_id = $1",
+        subscriber_id,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to read subscriber token of subscription_id from database.")?;
+    Ok((
+        SubscriberName::parse(result.name)?,
+        SubscriberEmail::parse(result.email)?,
+        SubscriberToken::parse(token.subscription_token)?,
+        result.subscribed_at,
+    ))
 }

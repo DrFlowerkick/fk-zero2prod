@@ -1,6 +1,6 @@
 //! tests/api/newsletter.rs
 
-use crate::helpers::{assert_is_redirect_to, spawn_app, ConfirmationLinks, TestApp};
+use crate::helpers::{assert_is_redirect_to, spawn_app, SubscriberLinks, TestApp};
 use fake::{
     faker::{internet::en::SafeEmail, name::en::Name},
     Fake,
@@ -10,7 +10,7 @@ use wiremock::{
     matchers::{any, method, path},
     Mock, MockBuilder, ResponseTemplate,
 };
-use zero2prod::domain::SubscriberEmail;
+use zero2prod::domain::{SubscriberEmail, SubscriberName};
 use zero2prod::idempotency::delete_outlived_idempotency_key;
 use zero2prod::routes::NewsletterFormData;
 
@@ -57,7 +57,9 @@ pub fn when_sending_an_email() -> MockBuilder {
 }
 
 /// Use the public API of the application under test to create an unconfirmed subscriber
-async fn create_unconfirmed_subscriber(app: &TestApp) -> (SubscriberEmail, ConfirmationLinks) {
+async fn create_unconfirmed_subscriber(
+    app: &TestApp,
+) -> (SubscriberEmail, SubscriberName, SubscriberLinks) {
     // We support working with multiple subscribers,
     // thier details must be randomized to avoid conflicts.
     let name: String = Name().fake();
@@ -69,6 +71,7 @@ async fn create_unconfirmed_subscriber(app: &TestApp) -> (SubscriberEmail, Confi
     .unwrap();
 
     let email = SubscriberEmail::parse(email).unwrap();
+    let name = SubscriberName::parse(name).unwrap();
 
     let _mock_guard = when_sending_an_email()
         .respond_with(ResponseTemplate::new(200))
@@ -90,22 +93,22 @@ async fn create_unconfirmed_subscriber(app: &TestApp) -> (SubscriberEmail, Confi
         .unwrap()
         .pop()
         .unwrap();
-    (email, app.get_confirmation_links(email_request))
+    (email, name, app.get_email_links(email_request))
 }
 
-pub async fn create_confirmed_subscriber(app: &TestApp) -> SubscriberEmail {
+pub async fn create_confirmed_subscriber(app: &TestApp) -> (SubscriberEmail, SubscriberName) {
     // We can reuse the same helper and just add
     // an extra step to actually call the confirmation link!
-    let (email, confirmation_link) = create_unconfirmed_subscriber(app).await;
-    reqwest::get(confirmation_link.html)
+    let (email, name, confirmation_link) = create_unconfirmed_subscriber(app).await;
+    reqwest::get(confirmation_link.html.confirmation.unwrap())
         .await
         .unwrap()
         .error_for_status()
         .unwrap();
-    email
+    (email, name)
 }
 
-async fn make_valid_subscriber_email_unvalid(app: &TestApp, email: SubscriberEmail) {
+async fn make_valid_subscriber_email_invalid(app: &TestApp, email: SubscriberEmail) {
     // get user_id from email
     let subscriber_id = sqlx::query!(
         "SELECT id FROM subscriptions \
@@ -116,11 +119,34 @@ async fn make_valid_subscriber_email_unvalid(app: &TestApp, email: SubscriberEma
     .await
     .unwrap()
     .id;
-    // make unvalid
-    let unvalid_email = email.as_ref().replace("@", "_at_");
+    // make invalid
+    let invalid_email = email.as_ref().replace("@", "_at_");
     sqlx::query!(
         r#"UPDATE subscriptions SET email = $1 WHERE id = $2"#,
-        unvalid_email,
+        invalid_email,
+        subscriber_id,
+    )
+    .execute(&app.db_pool)
+    .await
+    .unwrap();
+}
+
+async fn make_valid_subscriber_name_invalid(app: &TestApp, name: SubscriberName) {
+    // get user_id from email
+    let subscriber_id = sqlx::query!(
+        "SELECT id FROM subscriptions \
+        WHERE name = $1",
+        name.as_ref(),
+    )
+    .fetch_one(&app.db_pool)
+    .await
+    .unwrap()
+    .id;
+    // make invalid by appending
+    let invalid_name = name.as_ref().to_owned() + "()<>";
+    sqlx::query!(
+        r#"UPDATE subscriptions SET name = $1 WHERE id = $2"#,
+        invalid_name,
         subscriber_id,
     )
     .execute(&app.db_pool)
@@ -277,15 +303,75 @@ async fn newsletters_are_delivered_to_confirmed_subscribers_only() {
     );
     assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(0));
 
+    // Assert newsletter email contains no confirmation links and
+    // two identicalunsubscribe links (html and plain_text)
+    // first email (index 0) is confirmation link email
+    // secondemail (index 1) is newsltter email
+    let email_request = &test_app.email_server.received_requests().await.unwrap()[1];
+    let email_links = test_app.get_email_links(&email_request);
+    assert_eq!(email_links.html.confirmation, None);
+    assert_eq!(email_links.plain_text.confirmation, None);
+    assert_eq!(
+        email_links.html.unsubscribe,
+        email_links.plain_text.unsubscribe
+    );
+
     // Mock verifies on Drop that we have sent one newsletter email
 }
 
 #[tokio::test]
-async fn unvalid_emails_are_discarded_from_task_pool() {
+async fn invalid_emails_are_discarded_from_task_pool() {
     // Arrange
     let test_app = spawn_app().await;
-    let unvalid_email = create_confirmed_subscriber(&test_app).await;
-    make_valid_subscriber_email_unvalid(&test_app, unvalid_email).await;
+    let invalid_email = create_confirmed_subscriber(&test_app).await.0;
+    make_valid_subscriber_email_invalid(&test_app, invalid_email).await;
+
+    when_sending_an_email()
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act - Part 1 - Login
+    test_app.test_user.login(&test_app).await;
+
+    // Act - Part 2 -
+    let response = test_app
+        .post_newsletters(&valid_newsletter_form_data())
+        .await;
+
+    // Assert
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    // Act - Part 3 - Follow the redirect
+    let html_page = test_app.get_publish_newsletter_html().await;
+    assert!(html_page.contains(
+        "<p><i>The newsletter issue has been accepted - \
+        emails will go out shortly.</i></p>"
+    ));
+    test_app.dispatch_all_pending_emails().await;
+
+    // Assert for two subscribers, one being invalid
+    let newsletter_delivery_overview = test_app.get_newsletter_delivery_overview().await;
+    assert_eq!(
+        newsletter_delivery_overview.num_current_subscribers,
+        Some(1)
+    );
+    assert_eq!(
+        newsletter_delivery_overview.num_delivered_newsletters,
+        Some(0)
+    );
+    assert_eq!(newsletter_delivery_overview.num_failed_deliveries, Some(1));
+
+    // Mock verifies on Drop that we have sent no newsletter email
+}
+
+#[tokio::test]
+async fn invalid_names_are_discarded_from_task_pool() {
+    // Arrange
+    let test_app = spawn_app().await;
+    let invalid_name = create_confirmed_subscriber(&test_app).await.1;
+    make_valid_subscriber_name_invalid(&test_app, invalid_name).await;
 
     when_sending_an_email()
         .respond_with(ResponseTemplate::new(200))

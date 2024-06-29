@@ -116,7 +116,7 @@ async fn new_password_must_be_valid() {
         // Act - Part 3 - Follow the redirect
         let html_page = test_app.get_change_password_html().await;
         assert!(
-            html_page.contains("<p><i>The new password is unvalid.</i></p>"),
+            html_page.contains("<p><i>The new password is invalid.</i></p>"),
             "Bad password: {}",
             bad_password
         );
