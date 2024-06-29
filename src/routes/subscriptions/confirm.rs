@@ -1,6 +1,6 @@
 //! src/routes/subscriptions_confirm.rs
 
-use crate::domain::{SubscriberToken, ValidationError};
+use crate::domain::{SubscriberEmail, SubscriberName, SubscriberToken, ValidationError};
 use crate::error::Z2PResult;
 use crate::routes::get_status_from_subscriber_id;
 use actix_web::{web, Responder};
@@ -40,12 +40,12 @@ pub async fn confirm(
         ))?,
         Some(subscriber_id) => {
             let new_subscription = confirm_subscriber(&pool, subscriber_id).await?;
-            let (name, email, subscribed_at) =
+            let (name, email, _, subscribed_at) =
                 get_subscriber_from_subscriber_id(&pool, subscriber_id).await?;
             Ok(SubscriptionsTokenTemplate {
                 new_subscription,
-                name,
-                email,
+                name: name.as_ref().to_owned(),
+                email: email.as_ref().to_owned(),
                 subscribed_at,
             })
         }
@@ -53,7 +53,7 @@ pub async fn confirm(
 }
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, pool))]
-pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Z2PResult<bool> {
+async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Z2PResult<bool> {
     // check status of entry with subscriber_id
     match get_status_from_subscriber_id(pool, subscriber_id).await? {
         SubscriptionsStatus::PendingConfirmation => {
@@ -98,7 +98,12 @@ pub async fn get_subscriber_id_from_token(
 pub async fn get_subscriber_from_subscriber_id(
     pool: &PgPool,
     subscriber_id: Uuid,
-) -> Z2PResult<(String, String, DateTime<Utc>)> {
+) -> Z2PResult<(
+    SubscriberName,
+    SubscriberEmail,
+    SubscriberToken,
+    DateTime<Utc>,
+)> {
     let result = sqlx::query!(
         "SELECT email, name, subscribed_at FROM subscriptions
         WHERE id = $1",
@@ -106,6 +111,19 @@ pub async fn get_subscriber_from_subscriber_id(
     )
     .fetch_one(pool)
     .await
-    .context("Failed to read subscriber_id of subscription_token from database.")?;
-    Ok((result.name, result.email, result.subscribed_at))
+    .context("Failed to read subscriber data of subscription_id from database.")?;
+    let token = sqlx::query!(
+        "SELECT subscription_token FROM subscription_tokens
+        WHERE subscriber_id = $1",
+        subscriber_id,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to read subscriber token of subscription_id from database.")?;
+    Ok((
+        SubscriberName::parse(result.name)?,
+        SubscriberEmail::parse(result.email)?,
+        SubscriberToken::parse(token.subscription_token)?,
+        result.subscribed_at,
+    ))
 }

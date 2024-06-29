@@ -30,7 +30,7 @@ pub enum Error {
     LoginError,
     #[error("Failure changing password")]
     PasswordChangingError(#[from] CredentialsError),
-    #[error("Unvalid input for Newsletter")]
+    #[error("Invalid input for Newsletter")]
     NewsletterError(#[from] NewsletterError),
     #[error("Session state error")]
     SessionStateError(#[from] SessionError),

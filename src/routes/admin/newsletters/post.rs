@@ -130,11 +130,11 @@ async fn enqueue_delivery_tasks(
         r#"
         INSERT INTO issue_delivery_queue (
             newsletter_issue_id,
-            subscriber_email,
+            user_id,
             n_retries,
             execute_after
         )
-        SELECT $1, email, 0, NOW()
+        SELECT $1, id, 0, NOW()
         FROM subscriptions
         WHERE status = $2
         "#,

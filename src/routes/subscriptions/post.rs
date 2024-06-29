@@ -5,6 +5,7 @@ use std::error::Error as StdError;
 
 use actix_web::{web, HttpResponse};
 use anyhow::Context;
+use askama::Template;
 use chrono::Utc;
 use sqlx::postgres::PgDatabaseError;
 use sqlx::{Executor, PgPool, Postgres, Transaction};
@@ -186,6 +187,22 @@ pub async fn store_token(
     Ok(())
 }
 
+#[derive(Template)]
+#[template(path = "email_subscription_link.html")]
+struct EmailHtmlTemplate<'a> {
+    name: &'a str,
+    confirmation_link: &'a str,
+    unsubscribe_link: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "email_subscription_link.txt")]
+struct EmailTextTemplate<'a> {
+    name: &'a str,
+    confirmation_link: &'a str,
+    unsubscribe_link: &'a str,
+}
+
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
     skip(email_client, new_subscriber, base_url, subscription_token)
@@ -196,22 +213,32 @@ pub async fn send_confirmation_email(
     base_url: &str,
     subscription_token: &SubscriberToken,
 ) -> Z2PResult<()> {
-    // We create a (useless) confirmation link
+    // We create a confirmation link
     let confirmation_link = format!(
         "{}/subscriptions/confirm?subscription_token={}",
         base_url,
         subscription_token.as_ref()
     );
-    let plain_body = format!(
-        "Welcome to our newsletter!\n
-        Visit {} to confirm your subscription.",
-        confirmation_link
+    // We create a unsubscribe link
+    let unsubscribe_link = format!(
+        "{}/subscriptions/unsubscribe?subscription_token={}",
+        base_url,
+        subscription_token.as_ref()
     );
-    let html_body = format!(
-        "Welcome to our newsletter!<br />\
-        Click <a href=\"{}\">here</a> to confirm your subscription.",
-        confirmation_link
-    );
+    let plain_body = EmailTextTemplate {
+        name: new_subscriber.name.as_ref(),
+        confirmation_link: &confirmation_link,
+        unsubscribe_link: &unsubscribe_link,
+    }
+    .render()
+    .context("Failed to render html body.")?;
+    let html_body = EmailHtmlTemplate {
+        name: new_subscriber.name.as_ref(),
+        confirmation_link: &confirmation_link,
+        unsubscribe_link: &unsubscribe_link,
+    }
+    .render()
+    .context("Failed to render html body.")?;
     email_client
         .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
