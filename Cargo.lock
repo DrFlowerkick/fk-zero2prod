@@ -4241,7 +4241,7 @@ dependencies = [
 
 [[package]]
 name = "zero2prod"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "actix-session",
  "actix-web",
