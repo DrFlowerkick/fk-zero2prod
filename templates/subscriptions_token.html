@@ -7,9 +7,6 @@
 {% endblock %}
 
 {% block content %}
-    {% if flash_messages.len() == 0 %}
-        <p>No flash messages.</p>
-    {% endif %}
     {% for message in flash_messages %}
         <p><i>{{message|e}}</i></p>
     {% endfor %}

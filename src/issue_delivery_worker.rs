@@ -75,7 +75,7 @@ pub enum ExecutionOutcome {
 }
 
 #[derive(Template)]
-#[template(path = "email_newsletter.html")]
+#[template(path = "email_newsletter.html", escape = "none")]
 struct EmailHtmlTemplate<'a> {
     title: &'a str,
     name: &'a str,

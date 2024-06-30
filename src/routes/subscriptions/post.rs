@@ -191,6 +191,7 @@ pub async fn store_token(
 #[template(path = "email_subscription_link.html")]
 struct EmailHtmlTemplate<'a> {
     name: &'a str,
+    token: &'a str,
     confirmation_link: &'a str,
     unsubscribe_link: &'a str,
 }
@@ -199,6 +200,7 @@ struct EmailHtmlTemplate<'a> {
 #[template(path = "email_subscription_link.txt")]
 struct EmailTextTemplate<'a> {
     name: &'a str,
+    token: &'a str,
     confirmation_link: &'a str,
     unsubscribe_link: &'a str,
 }
@@ -227,6 +229,7 @@ pub async fn send_confirmation_email(
     );
     let plain_body = EmailTextTemplate {
         name: new_subscriber.name.as_ref(),
+        token: subscription_token.as_ref(),
         confirmation_link: &confirmation_link,
         unsubscribe_link: &unsubscribe_link,
     }
@@ -234,6 +237,7 @@ pub async fn send_confirmation_email(
     .context("Failed to render html body.")?;
     let html_body = EmailHtmlTemplate {
         name: new_subscriber.name.as_ref(),
+        token: subscription_token.as_ref(),
         confirmation_link: &confirmation_link,
         unsubscribe_link: &unsubscribe_link,
     }

@@ -2,7 +2,9 @@ Newsletter Confirmation
 
 Hello {{ name }}!
 
-Please confirm your subscription by clicking the link below:
+Your subscription token is: {{ token }} .
+
+Please confirm your subscription by either entering your token at our token page or by clicking the link below:
 {{ confirmation_link }}
 
 To unsubscribe click the link below:
