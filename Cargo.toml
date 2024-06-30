@@ -1,6 +1,6 @@
 [package]
 name = "zero2prod"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["Marc Blumentritt <flowerkick14@gmail.com>"]
 edition = "2021"
 
